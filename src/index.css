@@ -28,7 +28,7 @@ button:disabled {
 @layer components {
   .button-primary { @apply min-h-10 rounded-lg bg-secondary px-5 py-2 text-sm font-bold text-white transition hover:bg-deepgreen disabled:opacity-40; }
   .button-secondary { @apply rounded-lg border border-secondary px-4 py-2 text-sm font-bold text-secondary transition hover:bg-tertiary; }
-  .rating-option { @apply flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-900 transition hover:border-primary/60; }
+  .rating-option { @apply flex cursor-pointer items-center justify-start gap-2 rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-left text-sm font-bold text-slate-900 transition hover:border-primary/60; }
   .rating-option-selected { @apply border-primary bg-tertiary text-slate-900; }
 }
 

@@ -10,7 +10,8 @@ export const ratingOptions: Array<{ value: Rating; label: string }> = [
   { value: "excellent", label: "Excelente" },
 ];
 
-const sectionACriteria = [
+// eslint-disable-next-line react-refresh/only-export-components
+export const sectionACriteria = [
   { id: "puntualidad", title: "Puntualidad", description: "El empleado llega a tiempo al empezar y terminar el trabajo, y respeta los tiempos de pausa y almuerzo." },
   { id: "competencias_tecnicas", title: "Competencias técnicas", description: "El empleado utiliza técnicas y material adecuados para el tipo de trabajo y logra los resultados esperados." },
   { id: "coherencia", title: "Coherencia", description: "El empleado proporciona un trabajo de calidad continuo o mejorado a través del tiempo." },
