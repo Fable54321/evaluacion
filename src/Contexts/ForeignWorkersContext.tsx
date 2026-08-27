@@ -9,6 +9,7 @@ import {
 } from "react";
 import { fetchWithAuth } from "../Utils/fetchWithAuth";
 import { useAuth } from "../Contexts/AuthContext";
+import { cacheWorkers, getCachedWorkers } from "../Utils/offlineDb";
 
 export type Worker = {
   id: number;
@@ -129,6 +130,16 @@ export function ForeignWorkersProvider({ children }: { children: ReactNode }) {
       );
 
       setForeignWorkers(data);
+      setError("");
+      await cacheWorkers(data);
+    } catch (error) {
+      const cachedWorkers = await getCachedWorkers<Worker>().catch(() => []);
+      if (cachedWorkers.length) {
+        setForeignWorkers(cachedWorkers);
+        setError("");
+      } else {
+        setError(error instanceof Error ? error.message : "No se pudieron cargar los trabajadores.");
+      }
     } finally {
       setWorkersListLoading(false);
     }
@@ -136,6 +147,8 @@ export function ForeignWorkersProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (authChecked && user) {
+      // Worker loading synchronizes this provider with the authenticated API/cache.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void fetchForeignWorkers();
     }
   }, [authChecked, user, fetchForeignWorkers]);
