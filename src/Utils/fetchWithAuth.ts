@@ -1,3 +1,5 @@
+import { redirectToPortalHome, redirectToPortalLogin } from "./portalRedirect";
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 
 let refreshPromise: Promise<boolean> | null = null;
@@ -87,7 +89,7 @@ export async function fetchWithAuth<T>(
 
     if (!refreshed) {
       alert("veuillez vous reconnecter.")
-      window.location.replace("https://vegibec-portail.com/");
+      redirectToPortalLogin();
       throw new Error("Session expirée, veuillez vous reconnecter.");
     }
 
@@ -118,7 +120,7 @@ export async function fetchWithAuth<T>(
         message: errorMessage,
       });
       alert(`Accès refusé pour ${requestMethod} ${requestRoute}.\n${errorMessage}`);
-      window.location.replace("https://vegibec-portail.com/");
+      redirectToPortalHome();
       throw new Error(
         `Accès refusé : vous n'avez pas les permissions nécessaires. (${requestMethod} ${requestRoute})`,
       );

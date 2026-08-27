@@ -1,14 +1,15 @@
 import { useEffect, type ReactNode } from "react";
 import { useAuth } from "../Contexts/AuthContext";
-
-const PORTAL_URL = "https://vegibec-portail.com/";
+import { redirectToPortalHome, redirectToPortalLogin } from "../Utils/portalRedirect";
 
 export default function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading, authChecked } = useAuth();
   const hasAccess = Boolean(user?.appAccess?.some((app) => app.slug === "evaluacion" && ["admin", "user"].includes(app.role)));
 
   useEffect(() => {
-    if (authChecked && (!user || !hasAccess)) window.location.replace(PORTAL_URL);
+    if (!authChecked) return;
+    if (!user) redirectToPortalLogin();
+    else if (!hasAccess) redirectToPortalHome();
   }, [authChecked, user, hasAccess]);
 
   if (loading || !authChecked) return <main className="grid min-h-screen place-items-center p-6"><p className="font-semibold text-slate-700">Verificando acceso…</p></main>;
