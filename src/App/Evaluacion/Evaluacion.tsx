@@ -3,6 +3,7 @@ import { useForeignWorkers } from "../../Contexts/ForeignWorkersContext";
 import SectionA, { type SectionARatings } from "./SectionA";
 import SectionB, { type SectionBAnswers } from "./SectionB";
 import SectionC, { emptySectionCData, type SectionCData } from "./SectionC";
+import { fetchWithAuth } from "../../Utils/fetchWithAuth";
 
 type WorkType = "bodega" | "campo";
 type Step = "setup" | "section-a" | "section-b" | "section-c" | "complete";
@@ -30,6 +31,10 @@ export default function Evaluacion() {
   const [sectionARatings, setSectionARatings] = useState<SectionARatings>({});
   const [sectionBAnswers, setSectionBAnswers] = useState<SectionBAnswers>({});
   const [sectionCData, setSectionCData] = useState<SectionCData>(emptySectionCData);
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [savedEvaluationId, setSavedEvaluationId] = useState("");
+  const [savedWeightedScore, setSavedWeightedScore] = useState("");
 
   const selectedEvaluator =
     evaluators.find((worker) => String(worker.id) === selectedEvaluatorId) ??
@@ -42,6 +47,24 @@ export default function Evaluacion() {
   const beginEvaluation = (event: FormEvent) => {
     event.preventDefault();
     if (selectedEvaluator && selectedWorker && workType) setStep("section-c");
+  };
+  const saveEvaluation = async () => {
+    if (!selectedEvaluator || !selectedWorker || !workType) return;
+    try {
+      setSaving(true);
+      setSaveError("");
+      const result = await fetchWithAuth<{ evaluationId: string; scores: { total_weighted_score: string } }>("/evaluation", {
+        method: "POST",
+        body: { evaluatorId: selectedEvaluator.id, evaluatedWorkerId: selectedWorker.id, workType, sectionA: sectionARatings, sectionB: sectionBAnswers, sectionC: sectionCData },
+      });
+      setSavedEvaluationId(result.evaluationId);
+      setSavedWeightedScore(result.scores.total_weighted_score);
+      setStep("complete");
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "No se pudo guardar la evaluación.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -80,7 +103,7 @@ export default function Evaluacion() {
               id="evaluator-matricula"
               value={selectedEvaluator?.matricula}
             />
-            <WorkerSelect
+            <SearchableWorkerSelect
               label="Nombre de la persona evaluada"
               id="evaluated-worker"
               value={workerValue}
@@ -129,7 +152,7 @@ export default function Evaluacion() {
                   Persona evaluada
                 </p>
                 <h2 className="mt-0.5 text-xl font-semibold text-slate-950">
-                  {selectedWorker.surname} {selectedWorker.name}
+                  {formatWorkerName(selectedWorker)}
                 </h2>
                 <p className="text-sm text-slate-600">
                   Matrícula {selectedWorker.matricula} ·{" "}
@@ -153,9 +176,9 @@ export default function Evaluacion() {
                     onNext={() => setStep("section-c")}
                   />
                 ) : step === "section-c" ? (
-                  <SectionC data={sectionCData} workType={workType} onChange={setSectionCData} onBack={() => setStep("section-b")} onSubmit={() => setStep("complete")} />
+                  <SectionC data={sectionCData} workType={workType} onChange={setSectionCData} onBack={() => setStep("section-b")} onSubmit={saveEvaluation} saving={saving} error={saveError} />
                 ) : (
-                  <div className="py-8 text-center"><p className="text-xs font-bold uppercase tracking-widest text-secondary">Evaluación completada</p><h3 className="mt-2 text-2xl font-semibold text-deepgreen">Los datos están listos para guardar</h3><p className="mx-auto mt-2 max-w-lg text-sm text-slate-600">La interfaz conserva las respuestas de las tres secciones. El envío al servidor se puede conectar cuando esté definido el endpoint.</p><button type="button" onClick={() => setStep("section-c")} className="button-secondary mt-5">Volver a la Sección C</button></div>
+                  <div className="py-8 text-center"><p className="text-xs font-bold uppercase tracking-widest text-secondary">Evaluación guardada</p><h3 className="mt-2 text-2xl font-semibold text-deepgreen">La evaluación se guardó correctamente</h3><p className="mt-4 text-4xl font-bold text-secondary">{savedWeightedScore} / 100</p><p className="mt-1 text-sm text-slate-500">A 40% · B 40% · C 20%</p><p className="mx-auto mt-4 max-w-lg text-sm text-slate-600">Número de evaluación: {savedEvaluationId}</p></div>
                 )}
               </div>
             </section>
@@ -166,7 +189,23 @@ export default function Evaluacion() {
   );
 }
 
-type WorkerOption = { id: number; surname: string; name: string };
+type WorkerOption = { id: number; surname: string; name: string; matricula: string };
+
+function titleCaseName(value: string) {
+  return value
+    .trim()
+    .toLocaleLowerCase("es")
+    .replace(/(^|[\s'-])\p{L}/gu, (letter) => letter.toLocaleUpperCase("es"));
+}
+
+function formatWorkerName(worker: WorkerOption) {
+  return `${titleCaseName(worker.surname)} ${titleCaseName(worker.name)}`;
+}
+
+function normalizeSearch(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
+}
+
 function WorkerSelect({
   label,
   id,
@@ -195,12 +234,28 @@ function WorkerSelect({
         </option>
         {options.map((worker) => (
           <option key={worker.id} value={worker.id}>
-            {worker.surname} {worker.name}
+            {formatWorkerName(worker)}
           </option>
         ))}
       </select>
     </label>
   );
+}
+
+function SearchableWorkerSelect({ label, id, value, onChange, options }: { label: string; id: string; value: string; onChange: (value: string) => void; options: WorkerOption[] }) {
+  const [query, setQuery] = useState("");
+  const [editing, setEditing] = useState(false);
+  const selected = options.find((worker) => String(worker.id) === value);
+  const normalizedQuery = normalizeSearch(query);
+  const filteredWorkers = options.filter((worker) => normalizeSearch(`${worker.name} ${worker.surname} ${worker.surname} ${worker.name} ${worker.matricula}`).includes(normalizedQuery));
+
+  return <div className="relative flex flex-col gap-1 font-primary font-medium">
+    <label htmlFor={id}>{label}</label>
+    <input id={id} type="search" autoComplete="off" value={editing ? query : selected ? formatWorkerName(selected) : ""} onFocus={() => { setEditing(true); setQuery(""); }} onChange={(event) => setQuery(event.target.value)} onBlur={() => setEditing(false)} disabled={!options.length} placeholder={options.length ? "Buscar por nombre o matrícula…" : "No hay trabajadores disponibles"} className="rounded-lg border-2 border-gray-500 bg-tertiary/60 p-2.5 text-sm" />
+    {editing && <div className="absolute top-full z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+      {filteredWorkers.length ? filteredWorkers.map((worker) => <button key={worker.id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(String(worker.id)); setEditing(false); setQuery(""); }} className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-tertiary"><span>{formatWorkerName(worker)}</span><span className="shrink-0 font-bold text-secondary">{worker.matricula}</span></button>) : <p className="px-3 py-2 text-sm text-slate-500">No se encontraron trabajadores.</p>}
+    </div>}
+  </div>;
 }
 function ReadOnlyMatricula({ id, value }: { id: string; value?: string }) {
   return (

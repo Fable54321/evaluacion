@@ -29,13 +29,13 @@ export const emptySectionCData: SectionCData = {
   taskSpecification: "", quantity: "", unit: "", observations: "", finalRating: "",
 };
 
-type Props = { data: SectionCData; workType: "bodega" | "campo"; onChange: (data: SectionCData) => void; onBack: () => void; onSubmit: () => void };
+type Props = { data: SectionCData; workType: "bodega" | "campo"; onChange: (data: SectionCData) => void; onBack: () => void; onSubmit: () => void | Promise<void>; saving: boolean; error: string };
 
-export default function SectionC({ data, workType, onChange, onBack, onSubmit }: Props) {
+export default function SectionC({ data, workType, onChange, onBack, onSubmit, saving, error }: Props) {
   const update = <K extends keyof SectionCData>(key: K, value: SectionCData[K]) => onChange({ ...data, [key]: value });
   const availableCrops = workType === "bodega" ? crops.filter((crop) => !campoOnlyCrops.has(crop)) : crops;
   const availableTasks = workType === "bodega" ? tasks.filter((task) => bodegaTasks.has(task)) : tasks;
-  return <form onSubmit={(event) => { event.preventDefault(); onSubmit(); }} className="space-y-6">
+  return <form onSubmit={(event) => { event.preventDefault(); void onSubmit(); }} className="space-y-6">
     <header className="rounded-lg border-l-4 border-primary bg-tertiary p-4 text-sm text-slate-700">
       <p className="text-xs font-bold uppercase tracking-widest text-secondary">Sección C</p>
       <h3 className="mt-1 font-secondary text-lg font-bold text-deepgreen">Medida de rendimiento</h3>
@@ -75,7 +75,8 @@ export default function SectionC({ data, workType, onChange, onBack, onSubmit }:
       <p className="mb-3 text-sm text-slate-600">Seleccione la valoración que corresponde al rendimiento medido.</p>
       <div className="grid gap-2 sm:grid-cols-3">{ratingOptions.map((option) => <label key={option.value} className={`rating-option ${data.finalRating === option.value ? "rating-option-selected" : ""}`}><input type="radio" name="section-c-final-rating" value={option.value} checked={data.finalRating === option.value} onChange={() => update("finalRating", option.value)} required className="size-4 accent-secondary" />{option.label}</label>)}</div>
     </fieldset>
-    <div className="flex items-center justify-between gap-3"><button type="button" onClick={onBack} className="button-secondary">Anterior</button><button type="submit" className="button-primary">Finalizar evaluación</button></div>
+    {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>}
+    <div className="flex items-center justify-between gap-3"><button type="button" onClick={onBack} disabled={saving} className="button-secondary">Anterior</button><button type="submit" disabled={saving} className="button-primary">{saving ? "Guardando…" : "Finalizar evaluación"}</button></div>
   </form>;
 }
 
