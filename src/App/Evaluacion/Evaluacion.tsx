@@ -118,7 +118,7 @@ export default function Evaluacion() {
                 {error}
               </p>
             )}
-            <WorkerSelect
+            <SearchableWorkerSelect
               label="Nombre del evaluador"
               id="evaluator"
               value={evaluatorValue}
@@ -238,42 +238,6 @@ function formatWorkerName(worker: WorkerOption) {
 
 function normalizeSearch(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
-}
-
-function WorkerSelect({
-  label,
-  id,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  id: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: WorkerOption[];
-}) {
-  return (
-    <label htmlFor={id} className="flex flex-col gap-1 font-medium font-primary">
-      {label}
-      <select
-        id={id}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={!options.length}
-        className="rounded-lg border-2 border-gray-500 bg-tertiary/60 p-2.5 text-sm"
-      >
-        <option value="">
-          {options.length ? "Seleccione…" : "No hay trabajadores disponibles"}
-        </option>
-        {options.map((worker) => (
-          <option key={worker.id} value={worker.id}>
-            {formatWorkerName(worker)}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
 }
 
 function SearchableWorkerSelect({ label, id, value, onChange, options }: { label: string; id: string; value: string; onChange: (value: string) => void; options: WorkerOption[] }) {
