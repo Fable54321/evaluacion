@@ -34,7 +34,6 @@ export default function Evaluacion() {
   const [sectionCData, setSectionCData] = useState<SectionCData>(emptySectionCData);
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [savedEvaluationId, setSavedEvaluationId] = useState("");
   const [savedWeightedScore, setSavedWeightedScore] = useState("");
 
   useEffect(() => {
@@ -62,7 +61,6 @@ export default function Evaluacion() {
         method: "POST",
         body: { evaluatorId: selectedEvaluator.id, evaluatedWorkerId: selectedWorker.id, workType, positionTitle: positionTitle.trim(), sectionA: sectionARatings, sectionB: sectionBAnswers, sectionC: sectionCData },
       });
-      setSavedEvaluationId(result.evaluationId);
       setSavedWeightedScore(result.scores.total_weighted_score);
       setStep("complete");
     } catch (error) {
@@ -79,7 +77,6 @@ export default function Evaluacion() {
     setSectionBAnswers({});
     setSectionCData({ ...emptySectionCData });
     setSaveError("");
-    setSavedEvaluationId("");
     setSavedWeightedScore("");
     setStep("setup");
   };
@@ -214,7 +211,6 @@ export default function Evaluacion() {
                       <ResultHighlights title="Puntos fuertes" points={strongestPoints} tone="strong" ratingLabel={ratingLabel} />
                       <ResultHighlights title="Puntos a mejorar" points={weakestPoints} tone="weak" ratingLabel={ratingLabel} />
                     </div>
-                    <p className="mx-auto mt-6 max-w-lg text-sm text-slate-600">Número de evaluación: {savedEvaluationId}</p>
                     <button type="button" onClick={startNextEvaluation} className="button-primary mt-5">Nueva evaluación</button>
                   </div>
                 )}
