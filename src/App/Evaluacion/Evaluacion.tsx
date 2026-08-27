@@ -3,8 +3,9 @@ import { useForeignWorkers } from "../../Contexts/ForeignWorkersContext";
 import SectionA, { ratingOptions, sectionACriteria, type Rating, type SectionARatings } from "./SectionA";
 import SectionB, { sectionBQuestions, type SectionBAnswers } from "./SectionB";
 import SectionC, { emptySectionCData, type SectionCData } from "./SectionC";
-import { submitEvaluation, syncEvaluationOutbox } from "../../Utils/offlineSync";
+import { submitEvaluation } from "../../Utils/offlineSync";
 import type { OfflineEvaluationPayload } from "../../Utils/offlineDb";
+import { useEvaluationSync } from "../../Hooks/useEvaluationSync";
 
 type WorkType = "bodega" | "campo";
 type Step = "setup" | "section-a" | "section-b" | "section-c" | "complete";
@@ -38,17 +39,11 @@ export default function Evaluacion() {
   const [savedWeightedScore, setSavedWeightedScore] = useState("");
   const [clientSubmissionId, setClientSubmissionId] = useState(() => crypto.randomUUID());
   const [saveStatus, setSaveStatus] = useState<"synced" | "queued">("synced");
+  const syncStatus = useEvaluationSync();
 
   useEffect(() => {
     if (step !== "setup") window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
-
-  useEffect(() => {
-    const synchronize = () => { void syncEvaluationOutbox(); };
-    synchronize();
-    window.addEventListener("online", synchronize);
-    return () => window.removeEventListener("online", synchronize);
-  }, []);
 
   const selectedEvaluator =
     evaluators.find((worker) => String(worker.id) === selectedEvaluatorId) ??
@@ -108,6 +103,7 @@ export default function Evaluacion() {
   return (
     <main className="min-h-screen px-2 py-8 sm:px-6 font-primary">
       <article className="mx-auto flex w-full max-w-4xl flex-col items-center">
+        <SyncStatus status={syncStatus} />
         <h1 className="text-center font-secondary text-2xl font-semibold text-deepgreen sm:text-3xl">
           Evaluación de rendimiento
         </h1>
@@ -292,4 +288,22 @@ function calculateWeightedScore(payload: OfflineEvaluationPayload) {
   const normalized = (values: Array<Rating | undefined>, weight: number) => values.length ? values.reduce((total, rating) => total + (rating ? scores[rating] : 0), 0) / (values.length * 3) * weight : 0;
   const total = normalized(sectionAValues, 40) + normalized(applicableB, 40) + (payload.sectionC.finalRating ? scores[payload.sectionC.finalRating] / 3 * 20 : 0);
   return total.toFixed(2);
+}
+
+type EvaluationSyncStatus = ReturnType<typeof useEvaluationSync>;
+function SyncStatus({ status }: { status: EvaluationSyncStatus }) {
+  const { online, pendingCount, syncing, syncError, lastSyncedCount, synchronize } = status;
+  const appearance = !online ? "border-amber-300 bg-amber-50 text-amber-950" : syncError ? "border-red-200 bg-red-50 text-red-800" : syncing || pendingCount ? "border-blue-200 bg-blue-50 text-blue-900" : "border-primary/40 bg-white text-deepgreen";
+  const message = !online
+    ? `Sin conexión${pendingCount ? ` · ${pendingCount} evaluación${pendingCount === 1 ? "" : "es"} pendiente${pendingCount === 1 ? "" : "s"}` : ""}`
+    : syncing
+      ? "Sincronizando evaluaciones…"
+      : syncError
+        ? `${pendingCount} pendiente${pendingCount === 1 ? "" : "s"} · Error de sincronización`
+        : pendingCount
+          ? `${pendingCount} evaluación${pendingCount === 1 ? "" : "es"} pendiente${pendingCount === 1 ? "" : "s"}`
+          : lastSyncedCount
+            ? `${lastSyncedCount} evaluación${lastSyncedCount === 1 ? "" : "es"} sincronizada${lastSyncedCount === 1 ? "" : "s"}`
+            : "Todas las evaluaciones están sincronizadas";
+  return <aside aria-live="polite" className={`mb-5 flex w-[min(100%,800px)] flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${appearance}`}><span className="flex items-center gap-2"><span className={`size-2.5 rounded-full ${!online ? "bg-amber-500" : syncError ? "bg-red-500" : syncing || pendingCount ? "bg-blue-500" : "bg-primary"}`} />{message}</span>{online && pendingCount > 0 && !syncing && <button type="button" onClick={() => void synchronize()} className="rounded-md border border-current px-3 py-1 text-xs font-bold">Reintentar</button>}</aside>;
 }

@@ -26,18 +26,22 @@ export async function submitEvaluation(payload: OfflineEvaluationPayload): Promi
 }
 
 export async function syncEvaluationOutbox() {
-  if (!navigator.onLine) return { synced: 0, remaining: (await getQueuedEvaluations()).length };
+  if (!navigator.onLine) return { synced: 0, remaining: (await getQueuedEvaluations()).length, failed: 0, lastError: null as string | null };
   const records = await getQueuedEvaluations();
   let synced = 0;
+  let failed = 0;
+  let lastError: string | null = null;
   for (const record of records) {
     try {
       await fetchWithAuth<EvaluationSaveResponse>("/evaluation", { method: "POST", body: record.payload });
       await removeQueuedEvaluation(record.clientSubmissionId);
       synced += 1;
     } catch (error) {
-      await recordQueueFailure(record, error instanceof Error ? error.message : "Synchronization failed");
+      lastError = error instanceof Error ? error.message : "Synchronization failed";
+      await recordQueueFailure(record, lastError);
+      failed += 1;
       if (isNetworkFailure(error)) break;
     }
   }
-  return { synced, remaining: (await getQueuedEvaluations()).length };
+  return { synced, remaining: (await getQueuedEvaluations()).length, failed, lastError };
 }

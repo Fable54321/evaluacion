@@ -1,7 +1,16 @@
+import type { SectionARatings } from "../App/Evaluacion/SectionA";
+import type { SectionBAnswers } from "../App/Evaluacion/SectionB";
+import type { SectionCData } from "../App/Evaluacion/SectionC";
+
 const DATABASE_NAME = "vegibec-evaluacion";
 const DATABASE_VERSION = 1;
 const WORKERS_STORE = "workers";
 const OUTBOX_STORE = "evaluationOutbox";
+export const OUTBOX_CHANGE_EVENT = "evaluation-outbox-change";
+
+function notifyOutboxChange() {
+  window.dispatchEvent(new Event(OUTBOX_CHANGE_EVENT));
+}
 
 export type OfflineEvaluationPayload = {
   clientSubmissionId: string;
@@ -86,6 +95,7 @@ export async function queueEvaluation(payload: OfflineEvaluationPayload) {
     const now = new Date().toISOString();
     store.put({ clientSubmissionId: payload.clientSubmissionId, payload, createdAt: existing?.createdAt ?? now, updatedAt: now, attempts: existing?.attempts ?? 0, lastError: existing?.lastError ?? null } satisfies OutboxEvaluation);
     await waitForTransaction(transaction);
+    notifyOutboxChange();
   } finally {
     database.close();
   }
@@ -108,6 +118,7 @@ export async function removeQueuedEvaluation(clientSubmissionId: string) {
     const transaction = database.transaction(OUTBOX_STORE, "readwrite");
     transaction.objectStore(OUTBOX_STORE).delete(clientSubmissionId);
     await waitForTransaction(transaction);
+    notifyOutboxChange();
   } finally {
     database.close();
   }
@@ -119,10 +130,8 @@ export async function recordQueueFailure(record: OutboxEvaluation, error: string
     const transaction = database.transaction(OUTBOX_STORE, "readwrite");
     transaction.objectStore(OUTBOX_STORE).put({ ...record, attempts: record.attempts + 1, lastError: error, updatedAt: new Date().toISOString() } satisfies OutboxEvaluation);
     await waitForTransaction(transaction);
+    notifyOutboxChange();
   } finally {
     database.close();
   }
 }
-import type { SectionARatings } from "../App/Evaluacion/SectionA";
-import type { SectionBAnswers } from "../App/Evaluacion/SectionB";
-import type { SectionCData } from "../App/Evaluacion/SectionC";
