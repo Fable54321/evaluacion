@@ -32,6 +32,26 @@ interface AuthContextType {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
+const OFFLINE_USER_KEY = "vegibec-evaluacion-offline-user";
+const OFFLINE_USER_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+
+function saveOfflineUser(user: User) {
+    localStorage.setItem(OFFLINE_USER_KEY, JSON.stringify({ user, savedAt: Date.now() }));
+}
+
+function getOfflineUser(): User | null {
+    try {
+        const cached = JSON.parse(localStorage.getItem(OFFLINE_USER_KEY) ?? "null") as { user?: User; savedAt?: number } | null;
+        if (!cached?.user || !cached.savedAt || Date.now() - cached.savedAt > OFFLINE_USER_MAX_AGE) {
+            localStorage.removeItem(OFFLINE_USER_KEY);
+            return null;
+        }
+        return cached.user;
+    } catch {
+        localStorage.removeItem(OFFLINE_USER_KEY);
+        return null;
+    }
+}
 
 const AuthContext = createContext<AuthContextType>({
     user: null,
@@ -50,6 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [isAuthorized, setIsAuthorized] = useState(false);
 
     const clearAuth = () => {
+        localStorage.removeItem(OFFLINE_USER_KEY);
         setUser(null);
         setAuthChecked(true);
         setLoading(false);
@@ -97,9 +118,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
 
             setUser(me);
+            if (me) saveOfflineUser(me);
+            else localStorage.removeItem(OFFLINE_USER_KEY);
         } catch (err) {
             console.warn("Auth check failed:", err);
-            setUser(null);
+            setUser(getOfflineUser());
         } finally {
             setLoading(false);
             setAuthChecked(true);
