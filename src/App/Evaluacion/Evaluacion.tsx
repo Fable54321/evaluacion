@@ -35,6 +35,7 @@ export default function Evaluacion() {
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedWeightedScore, setSavedWeightedScore] = useState("");
+  const [clientSubmissionId, setClientSubmissionId] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
     if (step !== "setup") window.scrollTo({ top: 0, behavior: "smooth" });
@@ -59,7 +60,7 @@ export default function Evaluacion() {
       setSaveError("");
       const result = await fetchWithAuth<{ evaluationId: string; scores: { total_weighted_score: string } }>("/evaluation", {
         method: "POST",
-        body: { evaluatorId: selectedEvaluator.id, evaluatedWorkerId: selectedWorker.id, workType, positionTitle: positionTitle.trim(), sectionA: sectionARatings, sectionB: sectionBAnswers, sectionC: sectionCData },
+        body: { clientSubmissionId, evaluatorId: selectedEvaluator.id, evaluatedWorkerId: selectedWorker.id, workType, positionTitle: positionTitle.trim(), sectionA: sectionARatings, sectionB: sectionBAnswers, sectionC: sectionCData },
       });
       setSavedWeightedScore(result.scores.total_weighted_score);
       setStep("complete");
@@ -78,6 +79,7 @@ export default function Evaluacion() {
     setSectionCData({ ...emptySectionCData });
     setSaveError("");
     setSavedWeightedScore("");
+    setClientSubmissionId(crypto.randomUUID());
     setStep("setup");
   };
   const sectionAResults: HighlightPoint[] = sectionACriteria
