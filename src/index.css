@@ -39,3 +39,7 @@ body,
   min-height: 100vh;
   background-color: #F6F9F3;
 }
+
+html {
+  font-size: 125%;
+}
