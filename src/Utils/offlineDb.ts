@@ -9,9 +9,9 @@ export type OfflineEvaluationPayload = {
   evaluatedWorkerId: number;
   workType: "bodega" | "campo";
   positionTitle: string;
-  sectionA: Record<string, "needs_work" | "good" | "excellent">;
-  sectionB: Record<string, "needs_work" | "good" | "excellent">;
-  sectionC: Record<string, unknown>;
+  sectionA: SectionARatings;
+  sectionB: SectionBAnswers;
+  sectionC: SectionCData;
 };
 
 export type OutboxEvaluation = {
@@ -123,3 +123,6 @@ export async function recordQueueFailure(record: OutboxEvaluation, error: string
     database.close();
   }
 }
+import type { SectionARatings } from "../App/Evaluacion/SectionA";
+import type { SectionBAnswers } from "../App/Evaluacion/SectionB";
+import type { SectionCData } from "../App/Evaluacion/SectionC";

@@ -3,7 +3,8 @@ import { useForeignWorkers } from "../../Contexts/ForeignWorkersContext";
 import SectionA, { ratingOptions, sectionACriteria, type Rating, type SectionARatings } from "./SectionA";
 import SectionB, { sectionBQuestions, type SectionBAnswers } from "./SectionB";
 import SectionC, { emptySectionCData, type SectionCData } from "./SectionC";
-import { fetchWithAuth } from "../../Utils/fetchWithAuth";
+import { submitEvaluation, syncEvaluationOutbox } from "../../Utils/offlineSync";
+import type { OfflineEvaluationPayload } from "../../Utils/offlineDb";
 
 type WorkType = "bodega" | "campo";
 type Step = "setup" | "section-a" | "section-b" | "section-c" | "complete";
@@ -36,10 +37,18 @@ export default function Evaluacion() {
   const [saving, setSaving] = useState(false);
   const [savedWeightedScore, setSavedWeightedScore] = useState("");
   const [clientSubmissionId, setClientSubmissionId] = useState(() => crypto.randomUUID());
+  const [saveStatus, setSaveStatus] = useState<"synced" | "queued">("synced");
 
   useEffect(() => {
     if (step !== "setup") window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
+
+  useEffect(() => {
+    const synchronize = () => { void syncEvaluationOutbox(); };
+    synchronize();
+    window.addEventListener("online", synchronize);
+    return () => window.removeEventListener("online", synchronize);
+  }, []);
 
   const selectedEvaluator =
     evaluators.find((worker) => String(worker.id) === selectedEvaluatorId) ??
@@ -58,11 +67,10 @@ export default function Evaluacion() {
     try {
       setSaving(true);
       setSaveError("");
-      const result = await fetchWithAuth<{ evaluationId: string; scores: { total_weighted_score: string } }>("/evaluation", {
-        method: "POST",
-        body: { clientSubmissionId, evaluatorId: selectedEvaluator.id, evaluatedWorkerId: selectedWorker.id, workType, positionTitle: positionTitle.trim(), sectionA: sectionARatings, sectionB: sectionBAnswers, sectionC: sectionCData },
-      });
-      setSavedWeightedScore(result.scores.total_weighted_score);
+      const payload: OfflineEvaluationPayload = { clientSubmissionId, evaluatorId: selectedEvaluator.id, evaluatedWorkerId: selectedWorker.id, workType, positionTitle: positionTitle.trim(), sectionA: sectionARatings, sectionB: sectionBAnswers, sectionC: sectionCData };
+      const result = await submitEvaluation(payload);
+      setSaveStatus(result.status);
+      setSavedWeightedScore(result.status === "synced" ? result.response.scores.total_weighted_score : calculateWeightedScore(payload));
       setStep("complete");
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "No se pudo guardar la evaluación.");
@@ -79,6 +87,7 @@ export default function Evaluacion() {
     setSectionCData({ ...emptySectionCData });
     setSaveError("");
     setSavedWeightedScore("");
+    setSaveStatus("synced");
     setClientSubmissionId(crypto.randomUUID());
     setStep("setup");
   };
@@ -208,7 +217,7 @@ export default function Evaluacion() {
                 ) : step === "section-c" ? (
                   <SectionC data={sectionCData} workType={workType} onChange={setSectionCData} onBack={() => setStep("section-b")} onSubmit={saveEvaluation} saving={saving} error={saveError} />
                 ) : (
-                  <div className="py-8 text-center"><p className="text-xs font-bold uppercase tracking-widest text-secondary">Evaluación guardada</p><h3 className="mt-2 text-2xl font-semibold text-deepgreen">La evaluación se guardó correctamente</h3><p className="mt-4 text-4xl font-bold text-secondary">{savedWeightedScore} / 100</p><p className="mt-1 text-sm text-slate-500">A 40% · B 40% · C 20%</p>
+                  <div className="py-8 text-center"><p className="text-xs font-bold uppercase tracking-widest text-secondary">{saveStatus === "queued" ? "Guardada sin conexión" : "Evaluación guardada"}</p><h3 className="mt-2 text-2xl font-semibold text-deepgreen">{saveStatus === "queued" ? "La evaluación se guardó en este dispositivo" : "La evaluación se guardó correctamente"}</h3>{saveStatus === "queued" && <p className="mx-auto mt-2 max-w-xl rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">Se enviará automáticamente cuando vuelva la conexión.</p>}<p className="mt-4 text-4xl font-bold text-secondary">{savedWeightedScore} / 100</p><p className="mt-1 text-sm text-slate-500">A 40% · B 40% · C 20%</p>
                     <div className="mt-8 grid gap-4 text-left sm:grid-cols-2">
                       <ResultHighlights title="Puntos fuertes" points={strongestPoints} tone="strong" ratingLabel={ratingLabel} />
                       <ResultHighlights title="Puntos a mejorar" points={weakestPoints} tone="weak" ratingLabel={ratingLabel} />
@@ -274,4 +283,13 @@ function ReadOnlyMatricula({ id, value }: { id: string; value?: string }) {
 type HighlightPoint = { id: string; title: string; section: "A" | "B" | "C"; rating: Rating };
 function ResultHighlights({ title, points, tone, ratingLabel }: { title: string; points: HighlightPoint[]; tone: "strong" | "weak"; ratingLabel: (rating: Rating) => string }) {
   return <section className={`rounded-xl border p-4 ${tone === "strong" ? "border-primary/40 bg-tertiary" : "border-amber-200 bg-amber-50"}`}><h4 className="font-secondary text-lg font-bold text-deepgreen">{title}</h4>{points.length ? <ul className="mt-3 space-y-2">{points.map((point) => <li key={`${point.section}-${point.id}`} className="rounded-lg bg-white px-3 py-2.5 text-sm"><p className="font-semibold leading-5 text-slate-900">{point.title}</p><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-bold uppercase tracking-wide text-secondary">Sección {point.section}</span><span className={`rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-900 ${point.rating === "good" ? "font-bold" : "font-medium"}`}>{ratingLabel(point.rating)}</span></div></li>)}</ul> : <p className="mt-3 text-sm text-slate-600">Ningún punto identificado.</p>}</section>;
+}
+
+function calculateWeightedScore(payload: OfflineEvaluationPayload) {
+  const scores = { needs_work: 0, good: 2, excellent: 3 } as const;
+  const sectionAValues = Object.values(payload.sectionA);
+  const applicableB = sectionBQuestions.filter((question) => payload.workType === "campo" || !question.campoOnly).map((question) => payload.sectionB[question.id]);
+  const normalized = (values: Array<Rating | undefined>, weight: number) => values.length ? values.reduce((total, rating) => total + (rating ? scores[rating] : 0), 0) / (values.length * 3) * weight : 0;
+  const total = normalized(sectionAValues, 40) + normalized(applicableB, 40) + (payload.sectionC.finalRating ? scores[payload.sectionC.finalRating] / 3 * 20 : 0);
+  return total.toFixed(2);
 }

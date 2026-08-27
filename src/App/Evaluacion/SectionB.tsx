@@ -1,4 +1,5 @@
 import { ratingOptions, type Rating } from "./SectionA";
+import { useState } from "react";
 
 export type SectionBAnswers = Record<string, Rating>;
 // eslint-disable-next-line react-refresh/only-export-components
@@ -8,10 +9,12 @@ export const sectionBQuestions = [
 
 type Props = { answers: SectionBAnswers; workType: "bodega" | "campo"; onChange: (answers: SectionBAnswers) => void; onBack: () => void; onNext: () => void };
 export default function SectionB({ answers, workType, onChange, onBack, onNext }: Props) {
+  const [warning, setWarning] = useState("");
   const questions = sectionBQuestions.filter((question) => !question.campoOnly || workType === "campo");
   return <>
     <div className="border-b border-primary/30 pb-3"><p className="text-xs font-bold uppercase tracking-widest text-secondary">Sección B</p><h4 className="mt-1 text-xl font-semibold text-slate-950">Preguntas</h4><p className="mt-1 text-sm text-slate-600">Seleccione una valoración para cada pregunta.</p></div>
-    <div className="mt-4 space-y-3">{questions.map((question, index) => <fieldset key={question.id} className="rounded-xl border border-slate-200 p-4"><legend className="sr-only">Pregunta {index + 1}</legend><p className="text-sm font-medium leading-6 text-slate-800"><span className="mr-1 font-bold text-secondary">{index + 1}.</span>{question.question}</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{ratingOptions.map((option) => <label key={option.value} className={`rating-option ${answers[question.id] === option.value ? "rating-option-selected" : ""}`}><input type="radio" name={`section-b-${question.id}`} checked={answers[question.id] === option.value} onChange={() => onChange({ ...answers, [question.id]: option.value })} className="size-4 accent-secondary" />{option.label}</label>)}</div></fieldset>)}</div>
-    <div className="mt-5 flex items-center justify-between gap-3"><button type="button" onClick={onBack} className="button-secondary">Anterior</button><button type="button" onClick={onNext} className="button-primary">Siguiente</button></div>
+    <div className="mt-4 space-y-3">{questions.map((question, index) => <fieldset key={question.id} className="rounded-xl border border-slate-200 p-4"><legend className="sr-only">Pregunta {index + 1}</legend><p className="text-sm font-medium leading-6 text-slate-800"><span className="mr-1 font-bold text-secondary">{index + 1}.</span>{question.question}</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{ratingOptions.map((option) => <label key={option.value} className={`rating-option ${answers[question.id] === option.value ? "rating-option-selected" : ""}`}><input type="radio" name={`section-b-${question.id}`} checked={answers[question.id] === option.value} onChange={() => { onChange({ ...answers, [question.id]: option.value }); setWarning(""); }} className="size-4 accent-secondary" />{option.label}</label>)}</div></fieldset>)}</div>
+    {warning && <p role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{warning}</p>}
+    <div className="mt-5 flex items-center justify-between gap-3"><button type="button" onClick={onBack} className="button-secondary">Anterior</button><button type="button" onClick={() => { if (!questions.every((question) => answers[question.id])) { setWarning("Debe completar todas las preguntas de la Sección B antes de continuar."); return; } onNext(); }} className="button-primary">Siguiente</button></div>
   </>;
 }
