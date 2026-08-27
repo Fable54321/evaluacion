@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useForeignWorkers } from "../../Contexts/ForeignWorkersContext";
 import SectionA, { ratingOptions, sectionACriteria, type Rating, type SectionARatings } from "./SectionA";
 import SectionB, { sectionBQuestions, type SectionBAnswers } from "./SectionB";
@@ -36,6 +36,10 @@ export default function Evaluacion() {
   const [saving, setSaving] = useState(false);
   const [savedEvaluationId, setSavedEvaluationId] = useState("");
   const [savedWeightedScore, setSavedWeightedScore] = useState("");
+
+  useEffect(() => {
+    if (step !== "setup") window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
 
   const selectedEvaluator =
     evaluators.find((worker) => String(worker.id) === selectedEvaluatorId) ??
