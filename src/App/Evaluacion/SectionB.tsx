@@ -1,7 +1,14 @@
-import { ratingOptions, type Rating } from "./ratings";
+import type { Rating } from "./ratings";
 import { useState } from "react";
 
 export type SectionBAnswers = Record<string, Rating>;
+export type QuestionPolarity = "positive" | "negative";
+const behaviorRatingOptions: Array<{ value: Rating; label: string }> = [
+  { value: "needs_work", label: "Nunca" },
+  { value: "good", label: "A veces" },
+  { value: "excellent", label: "Siempre" },
+];
+const negativeQuestionNumbers = new Set([1, 2, 9, 13, 14, 15, 16, 17, 18, 28, 29, 34]);
 // eslint-disable-next-line react-refresh/only-export-components
 export const sectionBQuestions = [
   "¿El empleado llega tarde para tomar el bus?",
@@ -45,6 +52,7 @@ export const sectionBQuestions = [
   id: `question_${index + 1}`,
   question,
   campoOnly: [2, 3, 15, 20, 21, 28, 29].includes(index + 1),
+  polarity: (negativeQuestionNumbers.has(index + 1) ? "negative" : "positive") as QuestionPolarity,
 }));
 
 type Props = {
@@ -65,6 +73,10 @@ export default function SectionB({
   const questions = sectionBQuestions.filter(
     (question) => !question.campoOnly || workType === "campo",
   );
+  const groups = [
+    { id: "A.1", title: "Conductas positivas", polarity: "positive" as const },
+    { id: "A.2", title: "Conductas negativas", polarity: "negative" as const },
+  ];
   return (
     <>
       <div className="border-b border-primary/30 pb-3">
@@ -76,41 +88,28 @@ export default function SectionB({
           Seleccione una valoración para cada pregunta.
         </p>
       </div>
-      <div className="mt-4 space-y-3">
-        {questions.map((question, index) => (
-          <fieldset
-            key={question.id}
-            className="rounded-xl border border-slate-200 p-4"
-          >
-            <legend className="sr-only">Pregunta {index + 1}</legend>
-            <p className="text-sm font-medium leading-6 text-slate-800">
-              <span className="mr-1 font-bold text-secondary">
-                {index + 1}.
-              </span>
-              {question.question}
-            </p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              {ratingOptions.map((option) => (
-                <label
-                  key={option.value}
-                  className={`rating-option ${answers[question.id] === option.value ? "rating-option-selected" : ""}`}
-                >
-                  <input
-                    type="radio"
-                    name={`section-a-${question.id}`}
-                    checked={answers[question.id] === option.value}
-                    onChange={() => {
-                      onChange({ ...answers, [question.id]: option.value });
-                      setWarning("");
-                    }}
-                    className="size-4 accent-secondary"
-                  />
-                  {option.label}
-                </label>
-              ))}
+      <div className="mt-5 space-y-8">
+        {groups.map((group) => {
+          const groupQuestions = questions.filter((question) => question.polarity === group.polarity);
+          return <section key={group.id} aria-labelledby={`section-${group.id}`}>
+            <div className="mb-3 rounded-lg border-l-4 border-primary bg-tertiary p-3">
+              <h5 id={`section-${group.id}`} className="font-secondary text-lg font-bold text-deepgreen">{group.id}. {group.title}</h5>
+
             </div>
-          </fieldset>
-        ))}
+            <div className="space-y-3">{groupQuestions.map((question, index) => (
+              <fieldset key={question.id} className="rounded-xl border border-slate-200 p-4">
+                <legend className="sr-only">Pregunta {index + 1}</legend>
+                <p className="text-sm font-medium leading-6 text-slate-800"><span className="mr-1 font-bold text-secondary">{index + 1}.</span>{question.question}</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">{behaviorRatingOptions.map((option) => (
+                  <label key={option.value} className={`rating-option ${answers[question.id] === option.value ? "rating-option-selected" : ""}`}>
+                    <input type="radio" name={`section-a-${question.id}`} checked={answers[question.id] === option.value} onChange={() => { onChange({ ...answers, [question.id]: option.value }); setWarning(""); }} className="size-4 accent-secondary" />
+                    {option.label}
+                  </label>
+                ))}</div>
+              </fieldset>
+            ))}</div>
+          </section>;
+        })}
       </div>
       {warning && (
         <p

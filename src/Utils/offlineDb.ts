@@ -1,6 +1,7 @@
 import type { Rating } from "../App/Evaluacion/ratings";
 import type { SectionBAnswers } from "../App/Evaluacion/SectionB";
 import type { SectionCData } from "../App/Evaluacion/SectionC";
+import type { PermanenceData } from "../App/Evaluacion/SectionPermanencia";
 
 const DATABASE_NAME = "vegibec-evaluacion";
 const DATABASE_VERSION = 1;
@@ -21,6 +22,7 @@ export type OfflineEvaluationPayload = {
   sectionA: Record<string, Rating>;
   sectionB: SectionBAnswers;
   sectionC: SectionCData;
+  permanence: PermanenceData;
 };
 
 export type OutboxEvaluation = {

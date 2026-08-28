@@ -3,12 +3,13 @@ import { useForeignWorkers } from "../../Contexts/ForeignWorkersContext";
 import { ratingOptions, type Rating } from "./ratings";
 import SectionB, { sectionBQuestions, type SectionBAnswers } from "./SectionB";
 import SectionC, { emptySectionCData, type SectionCData } from "./SectionC";
+import SectionPermanencia, { emptyPermanenceData, type PermanenceData } from "./SectionPermanencia";
 import { submitEvaluation } from "../../Utils/offlineSync";
 import type { OfflineEvaluationPayload } from "../../Utils/offlineDb";
 import { useEvaluationSync } from "../../Hooks/useEvaluationSync";
 
 type WorkType = "bodega" | "campo";
-type Step = "setup" | "section-a" | "section-b" | "complete";
+type Step = "setup" | "section-a" | "section-b" | "section-c" | "complete";
 
 export default function Evaluacion() {
   const { foreignWorkers, workersListLoading, error } = useForeignWorkers();
@@ -32,11 +33,15 @@ export default function Evaluacion() {
   const [positionTitle, setPositionTitle] = useState("");
   const [step, setStep] = useState<Step>("setup");
   const [sectionBAnswers, setSectionBAnswers] = useState<SectionBAnswers>({});
-  const [sectionCData, setSectionCData] = useState<SectionCData>(emptySectionCData);
+  const [sectionCData, setSectionCData] =
+    useState<SectionCData>(emptySectionCData);
+  const [permanenceData, setPermanenceData] = useState<PermanenceData>(emptyPermanenceData);
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedWeightedScore, setSavedWeightedScore] = useState("");
-  const [clientSubmissionId, setClientSubmissionId] = useState(() => crypto.randomUUID());
+  const [clientSubmissionId, setClientSubmissionId] = useState(() =>
+    crypto.randomUUID(),
+  );
   const [saveStatus, setSaveStatus] = useState<"synced" | "queued">("synced");
   const syncStatus = useEvaluationSync();
 
@@ -54,20 +59,35 @@ export default function Evaluacion() {
   const workerValue = selectedWorker ? String(selectedWorker.id) : "";
   const beginEvaluation = (event: FormEvent) => {
     event.preventDefault();
-    if (selectedEvaluator && selectedWorker && workType && positionTitle.trim()) setStep("section-a");
+    if (selectedEvaluator && selectedWorker && workType && positionTitle.trim())
+      setStep("section-a");
   };
   const saveEvaluation = async () => {
     if (!selectedEvaluator || !selectedWorker || !workType) return;
     try {
       setSaving(true);
       setSaveError("");
-      const payload: OfflineEvaluationPayload = { clientSubmissionId, evaluatorId: selectedEvaluator.id, evaluatedWorkerId: selectedWorker.id, workType, positionTitle: positionTitle.trim(), sectionA: {}, sectionB: sectionBAnswers, sectionC: sectionCData };
+      const payload: OfflineEvaluationPayload = {
+        clientSubmissionId,
+        evaluatorId: selectedEvaluator.id,
+        evaluatedWorkerId: selectedWorker.id,
+        workType,
+        positionTitle: positionTitle.trim(),
+        sectionA: {},
+        sectionB: sectionBAnswers,
+        sectionC: sectionCData,
+        permanence: permanenceData,
+      };
       const result = await submitEvaluation(payload);
       setSaveStatus(result.status);
       setSavedWeightedScore(calculateWeightedScore(payload));
       setStep("complete");
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "No se pudo guardar la evaluación.");
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar la evaluación.",
+      );
     } finally {
       setSaving(false);
     }
@@ -78,6 +98,7 @@ export default function Evaluacion() {
     setPositionTitle("");
     setSectionBAnswers({});
     setSectionCData({ ...emptySectionCData });
+    setPermanenceData({ ...emptyPermanenceData });
     setSaveError("");
     setSavedWeightedScore("");
     setSaveStatus("synced");
@@ -86,14 +107,47 @@ export default function Evaluacion() {
   };
   const sectionAResults: HighlightPoint[] = sectionBQuestions
     .filter((question) => sectionBAnswers[question.id])
-    .map((question) => ({ id: question.id, title: question.question, section: "A", rating: sectionBAnswers[question.id] }));
-  const sectionBResults: HighlightPoint[] = sectionCData.finalRating ? [{ id: "performance_measurement", title: "Medida de rendimiento", section: "B", rating: sectionCData.finalRating }] : [];
+    .map((question) => ({
+      id: question.id,
+      title: question.question,
+      section: "A",
+      rating: sectionBAnswers[question.id],
+      polarity: question.polarity,
+    }));
+  const sectionBResults: HighlightPoint[] = sectionCData.finalRating
+    ? [
+        {
+          id: "performance_measurement",
+          title: "Medida de rendimiento",
+          section: "B",
+          rating: sectionCData.finalRating,
+          polarity: "positive",
+        },
+      ]
+    : [];
   const allResults = [...sectionBResults, ...sectionAResults];
-  const scoreByRating: Record<Rating, number> = { needs_work: 0, good: 2, excellent: 3 };
   const sectionImpact = { B: 2, A: 1 };
-  const strongestPoints = allResults.filter((point) => scoreByRating[point.rating] >= 2).sort((first, second) => sectionImpact[second.section] - sectionImpact[first.section] || scoreByRating[second.rating] - scoreByRating[first.rating]).slice(0, 3);
-  const weakestPoints = allResults.filter((point) => point.rating === "needs_work").sort((first, second) => sectionImpact[second.section] - sectionImpact[first.section]).slice(0, 3);
-  const ratingLabel = (rating: Rating) => ratingOptions.find((option) => option.value === rating)?.label ?? rating;
+  const strongestPoints = allResults
+    .filter((point) => scoreRating(point.rating, point.polarity) >= 2)
+    .sort(
+      (first, second) =>
+        sectionImpact[second.section] - sectionImpact[first.section] ||
+        scoreRating(second.rating, second.polarity) -
+          scoreRating(first.rating, first.polarity),
+    )
+    .slice(0, 3);
+  const weakestPoints = allResults
+    .filter((point) => scoreRating(point.rating, point.polarity) <= 1)
+    .sort(
+      (first, second) =>
+        sectionImpact[second.section] - sectionImpact[first.section] ||
+        scoreRating(first.rating, first.polarity) -
+          scoreRating(second.rating, second.polarity),
+    )
+    .slice(0, 3);
+  const ratingLabel = (point: HighlightPoint) => point.section === "A"
+    ? ({ needs_work: "Nunca", good: "A veces", excellent: "Siempre" } as const)[point.rating]
+    : ratingOptions.find((option) => option.value === point.rating)?.label ?? point.rating;
 
   return (
     <main className="min-h-screen px-2 py-8 sm:px-6 font-primary">
@@ -143,7 +197,23 @@ export default function Evaluacion() {
               id="worker-matricula"
               value={selectedWorker?.matricula}
             />
-            <label htmlFor="position-title" className="flex flex-col gap-1 font-primary font-medium">Puesto<input id="position-title" name="positionTitle" type="text" value={positionTitle} onChange={(event) => setPositionTitle(event.target.value)} maxLength={150} required placeholder="Ej.: Cosechador, empacador…" className="rounded-lg border-2 border-gray-500 bg-tertiary/60 p-2.5 text-sm" /></label>
+            <label
+              htmlFor="position-title"
+              className="flex flex-col gap-1 font-primary font-medium"
+            >
+              Puesto
+              <input
+                id="position-title"
+                name="positionTitle"
+                type="text"
+                value={positionTitle}
+                onChange={(event) => setPositionTitle(event.target.value)}
+                maxLength={150}
+                required
+                placeholder="Ej.: Cosechador, empacador…"
+                className="rounded-lg border-2 border-gray-500 bg-tertiary/60 p-2.5 text-sm"
+              />
+            </label>
             <fieldset>
               <legend className="font-medium">Tipo de trabajo</legend>
               <div className="mt-2 flex flex-wrap gap-3">
@@ -167,7 +237,12 @@ export default function Evaluacion() {
             </fieldset>
             <button
               type="submit"
-              disabled={!selectedEvaluator || !selectedWorker || !workType || !positionTitle.trim()}
+              disabled={
+                !selectedEvaluator ||
+                !selectedWorker ||
+                !workType ||
+                !positionTitle.trim()
+              }
               className="button-primary mt-2 self-end"
             >
               Siguiente
@@ -189,7 +264,7 @@ export default function Evaluacion() {
                   {workType === "bodega" ? "Bodega" : "Campo"} · {positionTitle}
                 </p>
               </header>
-              <div className="p-4 sm:p-5">
+              <div className="p-2 sm:p-5">
                 {step === "section-a" ? (
                   <SectionB
                     answers={sectionBAnswers}
@@ -199,14 +274,60 @@ export default function Evaluacion() {
                     onNext={() => setStep("section-b")}
                   />
                 ) : step === "section-b" ? (
-                  <SectionC data={sectionCData} workType={workType} onChange={setSectionCData} onBack={() => setStep("section-a")} onSubmit={saveEvaluation} saving={saving} error={saveError} />
+                  <SectionC
+                    data={sectionCData}
+                    workType={workType}
+                    onChange={setSectionCData}
+                    onBack={() => setStep("section-a")}
+                    onSubmit={() => setStep("section-c")}
+                    saving={false}
+                    error=""
+                    submitLabel="Siguiente"
+                  />
+                ) : step === "section-c" ? (
+                  <SectionPermanencia data={permanenceData} onChange={setPermanenceData} onBack={() => setStep("section-b")} onSubmit={saveEvaluation} saving={saving} error={saveError} />
                 ) : (
-                  <div className="py-8 text-center"><p className="text-xs font-bold uppercase tracking-widest text-secondary">{saveStatus === "queued" ? "Guardada sin conexión" : "Evaluación guardada"}</p><h3 className="mt-2 text-2xl font-semibold text-deepgreen">{saveStatus === "queued" ? "La evaluación se guardó en este dispositivo" : "La evaluación se guardó correctamente"}</h3>{saveStatus === "queued" && <p className="mx-auto mt-2 max-w-xl rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">Se enviará automáticamente cuando vuelva la conexión.</p>}<p className="mt-4 text-4xl font-bold text-secondary">{savedWeightedScore} / 100</p><p className="mt-1 text-sm text-slate-500">A 70% · B 30%</p>
+                  <div className="py-8 text-center">
+                    <p className="text-xs font-bold uppercase tracking-widest text-secondary">
+                      {saveStatus === "queued"
+                        ? "Guardada sin conexión"
+                        : "Evaluación guardada"}
+                    </p>
+                    <h3 className="mt-2 text-2xl font-semibold text-deepgreen">
+                      {saveStatus === "queued"
+                        ? "La evaluación se guardó en este dispositivo"
+                        : "La evaluación se guardó correctamente"}
+                    </h3>
+                    {saveStatus === "queued" && (
+                      <p className="mx-auto mt-2 max-w-xl rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+                        Se enviará automáticamente cuando vuelva la conexión.
+                      </p>
+                    )}
+                    <p className="mt-4 text-4xl font-bold text-secondary">
+                      {savedWeightedScore} / 100
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">A 70% · B 30%</p>
                     <div className="mt-8 grid gap-4 text-left sm:grid-cols-2">
-                      <ResultHighlights title="Puntos fuertes" points={strongestPoints} tone="strong" ratingLabel={ratingLabel} />
-                      <ResultHighlights title="Puntos a mejorar" points={weakestPoints} tone="weak" ratingLabel={ratingLabel} />
+                      <ResultHighlights
+                        title="Puntos fuertes"
+                        points={strongestPoints}
+                        tone="strong"
+                        ratingLabel={ratingLabel}
+                      />
+                      <ResultHighlights
+                        title="Puntos a mejorar"
+                        points={weakestPoints}
+                        tone="weak"
+                        ratingLabel={ratingLabel}
+                      />
                     </div>
-                    <button type="button" onClick={startNextEvaluation} className="button-primary mt-5">Nueva evaluación</button>
+                    <button
+                      type="button"
+                      onClick={startNextEvaluation}
+                      className="button-primary mt-5"
+                    >
+                      Nueva evaluación
+                    </button>
                   </div>
                 )}
               </div>
@@ -218,7 +339,12 @@ export default function Evaluacion() {
   );
 }
 
-type WorkerOption = { id: number; surname: string; name: string; matricula: string };
+type WorkerOption = {
+  id: number;
+  surname: string;
+  name: string;
+  matricula: string;
+};
 
 function titleCaseName(value: string) {
   return value
@@ -232,23 +358,87 @@ function formatWorkerName(worker: WorkerOption) {
 }
 
 function normalizeSearch(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("es");
 }
 
-function SearchableWorkerSelect({ label, id, value, onChange, options }: { label: string; id: string; value: string; onChange: (value: string) => void; options: WorkerOption[] }) {
+function SearchableWorkerSelect({
+  label,
+  id,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: WorkerOption[];
+}) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(false);
   const selected = options.find((worker) => String(worker.id) === value);
   const normalizedQuery = normalizeSearch(query);
-  const filteredWorkers = options.filter((worker) => normalizeSearch(`${worker.name} ${worker.surname} ${worker.surname} ${worker.name} ${worker.matricula}`).includes(normalizedQuery));
+  const filteredWorkers = options.filter((worker) =>
+    normalizeSearch(
+      `${worker.name} ${worker.surname} ${worker.surname} ${worker.name} ${worker.matricula}`,
+    ).includes(normalizedQuery),
+  );
 
-  return <div className="relative flex flex-col gap-1 font-primary font-medium">
-    <label htmlFor={id}>{label}</label>
-    <input id={id} type="search" autoComplete="off" value={editing ? query : selected ? formatWorkerName(selected) : ""} onFocus={() => { setEditing(true); setQuery(""); }} onChange={(event) => setQuery(event.target.value)} onBlur={() => setEditing(false)} disabled={!options.length} placeholder={options.length ? "Buscar por nombre o matrícula…" : "No hay trabajadores disponibles"} className="rounded-lg border-2 border-gray-500 bg-tertiary/60 p-2.5 text-sm" />
-    {editing && <div className="absolute top-full z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
-      {filteredWorkers.length ? filteredWorkers.map((worker) => <button key={worker.id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(String(worker.id)); setEditing(false); setQuery(""); }} className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-tertiary"><span>{formatWorkerName(worker)}</span><span className="shrink-0 font-bold text-secondary">{worker.matricula}</span></button>) : <p className="px-3 py-2 text-sm text-slate-500">No se encontraron trabajadores.</p>}
-    </div>}
-  </div>;
+  return (
+    <div className="relative flex flex-col gap-1 font-primary font-medium">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        type="search"
+        autoComplete="off"
+        value={editing ? query : selected ? formatWorkerName(selected) : ""}
+        onFocus={() => {
+          setEditing(true);
+          setQuery("");
+        }}
+        onChange={(event) => setQuery(event.target.value)}
+        onBlur={() => setEditing(false)}
+        disabled={!options.length}
+        placeholder={
+          options.length
+            ? "Buscar por nombre o matrícula…"
+            : "No hay trabajadores disponibles"
+        }
+        className="rounded-lg border-2 border-gray-500 bg-tertiary/60 p-2.5 text-sm"
+      />
+      {editing && (
+        <div className="absolute top-full z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+          {filteredWorkers.length ? (
+            filteredWorkers.map((worker) => (
+              <button
+                key={worker.id}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onChange(String(worker.id));
+                  setEditing(false);
+                  setQuery("");
+                }}
+                className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-tertiary"
+              >
+                <span>{formatWorkerName(worker)}</span>
+                <span className="shrink-0 font-bold text-secondary">
+                  {worker.matricula}
+                </span>
+              </button>
+            ))
+          ) : (
+            <p className="px-3 py-2 text-sm text-slate-500">
+              No se encontraron trabajadores.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 function ReadOnlyMatricula({ id, value }: { id: string; value?: string }) {
   return (
@@ -264,23 +454,114 @@ function ReadOnlyMatricula({ id, value }: { id: string; value?: string }) {
   );
 }
 
-type HighlightPoint = { id: string; title: string; section: "A" | "B"; rating: Rating };
-function ResultHighlights({ title, points, tone, ratingLabel }: { title: string; points: HighlightPoint[]; tone: "strong" | "weak"; ratingLabel: (rating: Rating) => string }) {
-  return <section className={`rounded-xl border p-4 ${tone === "strong" ? "border-primary/40 bg-tertiary" : "border-amber-200 bg-amber-50"}`}><h4 className="font-secondary text-lg font-bold text-deepgreen">{title}</h4>{points.length ? <ul className="mt-3 space-y-2">{points.map((point) => <li key={`${point.section}-${point.id}`} className="rounded-lg bg-white px-3 py-2.5 text-sm"><p className="font-semibold leading-5 text-slate-900">{point.title}</p><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-bold uppercase tracking-wide text-secondary">Sección {point.section}</span><span className={`rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-900 ${point.rating === "good" ? "font-bold" : "font-medium"}`}>{ratingLabel(point.rating)}</span></div></li>)}</ul> : <p className="mt-3 text-sm text-slate-600">Ningún punto identificado.</p>}</section>;
+type HighlightPoint = {
+  id: string;
+  title: string;
+  section: "A" | "B";
+  rating: Rating;
+  polarity: "positive" | "negative";
+};
+function ResultHighlights({
+  title,
+  points,
+  tone,
+  ratingLabel,
+}: {
+  title: string;
+  points: HighlightPoint[];
+  tone: "strong" | "weak";
+  ratingLabel: (point: HighlightPoint) => string;
+}) {
+  return (
+    <section
+      className={`rounded-xl border p-4 ${tone === "strong" ? "border-primary/40 bg-tertiary" : "border-amber-200 bg-amber-50"}`}
+    >
+      <h4 className="font-secondary text-lg font-bold text-deepgreen">
+        {title}
+      </h4>
+      {points.length ? (
+        <ul className="mt-3 space-y-2">
+          {points.map((point) => (
+            <li
+              key={`${point.section}-${point.id}`}
+              className="rounded-lg bg-white px-3 py-2.5 text-sm"
+            >
+              <p className="font-semibold leading-5 text-slate-900">
+                {point.title}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold uppercase tracking-wide text-secondary">
+                  Sección {point.section}
+                </span>
+                <span
+                  className={`rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-900 ${point.rating === "good" ? "font-bold" : "font-medium"}`}
+                >
+                  {ratingLabel(point)}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-3 text-sm text-slate-600">
+          Ningún punto identificado.
+        </p>
+      )}
+    </section>
+  );
 }
 
 function calculateWeightedScore(payload: OfflineEvaluationPayload) {
-  const scores = { needs_work: 0, good: 2, excellent: 3 } as const;
-  const applicableA = sectionBQuestions.filter((question) => payload.workType === "campo" || !question.campoOnly).map((question) => payload.sectionB[question.id]);
-  const normalized = (values: Array<Rating | undefined>, weight: number) => values.length ? values.reduce((total, rating) => total + (rating ? scores[rating] : 0), 0) / (values.length * 3) * weight : 0;
-  const total = normalized(applicableA, 70) + (payload.sectionC.finalRating ? scores[payload.sectionC.finalRating] / 3 * 30 : 0);
+  const applicableA = sectionBQuestions.filter(
+    (question) => payload.workType === "campo" || !question.campoOnly,
+  );
+  const sectionAScore = applicableA.length
+    ? (applicableA.reduce((total, question) => {
+        const rating = payload.sectionB[question.id];
+        return total + (rating ? scoreRating(rating, question.polarity) : 0);
+      }, 0) /
+        (applicableA.length * 3)) *
+      70
+    : 0;
+  const total =
+    sectionAScore +
+    (payload.sectionC.finalRating
+      ? (scoreRating(payload.sectionC.finalRating, "positive") / 3) * 30
+      : 0);
   return total.toFixed(2);
+}
+
+function scoreRating(rating: Rating, polarity: "positive" | "negative") {
+  const positiveScores: Record<Rating, number> = {
+    needs_work: 0,
+    good: 2,
+    excellent: 3,
+  };
+  const negativeScores: Record<Rating, number> = {
+    needs_work: 3,
+    good: 1,
+    excellent: 0,
+  };
+  return (polarity === "negative" ? negativeScores : positiveScores)[rating];
 }
 
 type EvaluationSyncStatus = ReturnType<typeof useEvaluationSync>;
 function SyncStatus({ status }: { status: EvaluationSyncStatus }) {
-  const { online, pendingCount, syncing, syncError, lastSyncedCount, synchronize } = status;
-  const appearance = !online ? "border-amber-300 bg-amber-50 text-amber-950" : syncError ? "border-red-200 bg-red-50 text-red-800" : syncing || pendingCount ? "border-blue-200 bg-blue-50 text-blue-900" : "border-primary/40 bg-white text-deepgreen";
+  const {
+    online,
+    pendingCount,
+    syncing,
+    syncError,
+    lastSyncedCount,
+    synchronize,
+  } = status;
+  const appearance = !online
+    ? "border-amber-300 bg-amber-50 text-amber-950"
+    : syncError
+      ? "border-red-200 bg-red-50 text-red-800"
+      : syncing || pendingCount
+        ? "border-blue-200 bg-blue-50 text-blue-900"
+        : "border-primary/40 bg-white text-deepgreen";
   const message = !online
     ? `Sin conexión${pendingCount ? ` · ${pendingCount} evaluación${pendingCount === 1 ? "" : "es"} pendiente${pendingCount === 1 ? "" : "s"}` : ""}`
     : syncing
@@ -292,5 +573,26 @@ function SyncStatus({ status }: { status: EvaluationSyncStatus }) {
           : lastSyncedCount
             ? `${lastSyncedCount} evaluación${lastSyncedCount === 1 ? "" : "es"} sincronizada${lastSyncedCount === 1 ? "" : "s"}`
             : "Todas las evaluaciones están sincronizadas";
-  return <aside aria-live="polite" className={`mb-5 flex w-[min(100%,800px)] flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${appearance}`}><span className="flex items-center gap-2"><span className={`size-2.5 rounded-full ${!online ? "bg-amber-500" : syncError ? "bg-red-500" : syncing || pendingCount ? "bg-blue-500" : "bg-primary"}`} />{message}</span>{online && pendingCount > 0 && !syncing && <button type="button" onClick={() => void synchronize()} className="rounded-md border border-current px-3 py-1 text-xs font-bold">Reintentar</button>}</aside>;
+  return (
+    <aside
+      aria-live="polite"
+      className={`mb-5 flex w-[min(100%,800px)] flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${appearance}`}
+    >
+      <span className="flex items-center gap-2">
+        <span
+          className={`size-2.5 rounded-full ${!online ? "bg-amber-500" : syncError ? "bg-red-500" : syncing || pendingCount ? "bg-blue-500" : "bg-primary"}`}
+        />
+        {message}
+      </span>
+      {online && pendingCount > 0 && !syncing && (
+        <button
+          type="button"
+          onClick={() => void synchronize()}
+          className="rounded-md border border-current px-3 py-1 text-xs font-bold"
+        >
+          Reintentar
+        </button>
+      )}
+    </aside>
+  );
 }
