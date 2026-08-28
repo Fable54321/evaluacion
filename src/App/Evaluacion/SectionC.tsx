@@ -1,4 +1,4 @@
-import { ratingOptions, type Rating } from "./SectionA";
+import { ratingOptions, type Rating } from "./ratings";
 
 const crops = ["Apio", "Chile pimiento", "Coliflor", "Lechuga romana", "Lechuga bola", "Lechuga rizada", "Coles de Bruselas", "Repollo", "Repollo plano", "Col (repollo) de Saboya", "Zucchini", "Corazón de romana"];
 const campoOnlyCrops = new Set(["Apio", "Lechuga romana", "Lechuga bola", "Lechuga rizada", "Col (repollo) de Saboya", "Corazón de romana"]);
@@ -37,12 +37,12 @@ export default function SectionC({ data, workType, onChange, onBack, onSubmit, s
   const availableTasks = workType === "bodega" ? tasks.filter((task) => bodegaTasks.has(task)) : tasks;
   return <form onSubmit={(event) => { event.preventDefault(); void onSubmit(); }} className="space-y-6">
     <header className="rounded-lg border-l-4 border-primary bg-tertiary p-4 text-sm text-slate-700">
-      <p className="text-xs font-bold uppercase tracking-widest text-secondary">Sección C</p>
+      <p className="text-xs font-bold uppercase tracking-widest text-secondary">Sección B</p>
       <h3 className="mt-1 font-secondary text-lg font-bold text-deepgreen">Medida de rendimiento</h3>
       <p className="mt-1">Mida la prestación real del empleado durante un periodo consecutivo de 15 minutos. Evalúe a los empleados que trabajan en la misma tarea, en el mismo campo y durante la misma semana.</p>
     </header>
     <fieldset className="space-y-4">
-      <legend className="font-secondary text-lg font-bold text-deepgreen">C.1. Condiciones de evaluación</legend>
+      <legend className="font-secondary text-lg font-bold text-deepgreen">B.1. Condiciones de evaluación</legend>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label="Fecha" name="evaluationDate" type="date" value={data.evaluationDate} onChange={(value) => update("evaluationDate", value)} required />
         {workType === "campo" && <TextField label="Número de campo" name="fieldNumber" value={data.fieldNumber} onChange={(value) => update("fieldNumber", value)} placeholder="Ej.: 12" />}
@@ -57,7 +57,7 @@ export default function SectionC({ data, workType, onChange, onBack, onSubmit, s
       {data.task === "Otro" && <TextField label="Otra tarea" name="otherTask" value={data.otherTask} onChange={(value) => update("otherTask", value)} placeholder="Especifique la tarea" required />}
     </fieldset>
     <fieldset className="rounded-lg border border-gray-200 p-4">
-      <legend className="px-2 font-secondary text-lg font-bold text-deepgreen">C.2. Medida</legend>
+      <legend className="px-2 font-secondary text-lg font-bold text-deepgreen">B.2. Medida</legend>
       <p className="mb-4 text-sm text-slate-600">Por un periodo de 15 minutos, indique la cantidad realizada por el empleado.</p>
       <div className="mb-4">
         <TextField label="Especificación de la tarea" name="taskSpecification" value={data.taskSpecification} onChange={(value) => update("taskSpecification", value)} placeholder="especifica la tarea" required />
@@ -69,11 +69,11 @@ export default function SectionC({ data, workType, onChange, onBack, onSubmit, s
         <TextField label="Unidad de medida" name="unit" value={data.unit} onChange={(value) => update("unit", value)} placeholder="Ej.: cajas, metros, pasos" required />
       </div>
     </fieldset>
-    <label className="block font-secondary text-lg font-bold text-deepgreen">C.3. Observaciones<textarea name="observations" rows={4} value={data.observations} onChange={(event) => update("observations", event.target.value)} className={`${fieldClass} resize-y font-primary font-normal`} placeholder="Si el empleado no se pudo evaluar, explique por qué. Añada cualquier observación pertinente." /></label>
+    <label className="block font-secondary text-lg font-bold text-deepgreen">B.3. Observaciones<textarea name="observations" rows={4} value={data.observations} onChange={(event) => update("observations", event.target.value)} className={`${fieldClass} resize-y font-primary font-normal`} placeholder="Si el empleado no se pudo evaluar, explique por qué. Añada cualquier observación pertinente." /></label>
     <fieldset className="rounded-lg border border-gray-200 p-4">
       <legend className="px-2 font-secondary text-lg font-bold text-deepgreen">Calificación de rendimiento</legend>
       <p className="mb-3 text-sm text-slate-600">Seleccione la valoración que corresponde al rendimiento medido.</p>
-      <div className="grid gap-2 sm:grid-cols-3">{ratingOptions.map((option) => <label key={option.value} className={`rating-option ${data.finalRating === option.value ? "rating-option-selected" : ""}`}><input type="radio" name="section-c-final-rating" value={option.value} checked={data.finalRating === option.value} onChange={() => update("finalRating", option.value)} required className="size-4 accent-secondary" />{option.label}</label>)}</div>
+      <div className="grid gap-2 sm:grid-cols-3">{ratingOptions.map((option) => <label key={option.value} className={`rating-option ${data.finalRating === option.value ? "rating-option-selected" : ""}`}><input type="radio" name="section-b-final-rating" value={option.value} checked={data.finalRating === option.value} onChange={() => update("finalRating", option.value)} required className="size-4 accent-secondary" />{option.label}</label>)}</div>
     </fieldset>
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>}
     <div className="flex items-center justify-between gap-3"><button type="button" onClick={onBack} disabled={saving} className="button-secondary">Anterior</button><button type="submit" disabled={saving} className="button-primary">{saving ? "Guardando…" : "Finalizar evaluación"}</button></div>

@@ -1,4 +1,4 @@
-import type { SectionARatings } from "../App/Evaluacion/SectionA";
+import type { Rating } from "../App/Evaluacion/ratings";
 import type { SectionBAnswers } from "../App/Evaluacion/SectionB";
 import type { SectionCData } from "../App/Evaluacion/SectionC";
 
@@ -18,7 +18,7 @@ export type OfflineEvaluationPayload = {
   evaluatedWorkerId: number;
   workType: "bodega" | "campo";
   positionTitle: string;
-  sectionA: SectionARatings;
+  sectionA: Record<string, Rating>;
   sectionB: SectionBAnswers;
   sectionC: SectionCData;
 };
