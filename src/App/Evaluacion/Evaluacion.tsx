@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useForeignWorkers } from "../../Contexts/ForeignWorkersContext";
-import { ratingOptions, type Rating } from "./ratings";
-import SectionB, { sectionBQuestions, type SectionBAnswers } from "./SectionB";
+import SectionB, { type SectionBAnswers } from "./SectionB";
 import SectionC, { emptySectionCData, type SectionCData } from "./SectionC";
 import SectionPermanencia, { emptyPermanenceData, type PermanenceData } from "./SectionPermanencia";
 import { submitEvaluation } from "../../Utils/offlineSync";
@@ -38,7 +37,6 @@ export default function Evaluacion() {
   const [permanenceData, setPermanenceData] = useState<PermanenceData>(emptyPermanenceData);
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [savedWeightedScore, setSavedWeightedScore] = useState("");
   const [clientSubmissionId, setClientSubmissionId] = useState(() =>
     crypto.randomUUID(),
   );
@@ -80,7 +78,6 @@ export default function Evaluacion() {
       };
       const result = await submitEvaluation(payload);
       setSaveStatus(result.status);
-      setSavedWeightedScore(calculateWeightedScore(payload));
       setStep("complete");
     } catch (error) {
       setSaveError(
@@ -100,55 +97,10 @@ export default function Evaluacion() {
     setSectionCData({ ...emptySectionCData });
     setPermanenceData({ ...emptyPermanenceData });
     setSaveError("");
-    setSavedWeightedScore("");
     setSaveStatus("synced");
     setClientSubmissionId(crypto.randomUUID());
     setStep("setup");
   };
-  const sectionAResults: HighlightPoint[] = sectionBQuestions
-    .filter((question) => sectionBAnswers[question.id])
-    .map((question) => ({
-      id: question.id,
-      title: question.question,
-      section: "A",
-      rating: sectionBAnswers[question.id],
-      polarity: question.polarity,
-    }));
-  const sectionBResults: HighlightPoint[] = sectionCData.finalRating
-    ? [
-        {
-          id: "performance_measurement",
-          title: "Medida de rendimiento",
-          section: "B",
-          rating: sectionCData.finalRating,
-          polarity: "positive",
-        },
-      ]
-    : [];
-  const allResults = [...sectionBResults, ...sectionAResults];
-  const sectionImpact = { B: 2, A: 1 };
-  const strongestPoints = allResults
-    .filter((point) => scoreRating(point.rating, point.polarity) >= 2)
-    .sort(
-      (first, second) =>
-        sectionImpact[second.section] - sectionImpact[first.section] ||
-        scoreRating(second.rating, second.polarity) -
-          scoreRating(first.rating, first.polarity),
-    )
-    .slice(0, 3);
-  const weakestPoints = allResults
-    .filter((point) => scoreRating(point.rating, point.polarity) <= 1)
-    .sort(
-      (first, second) =>
-        sectionImpact[second.section] - sectionImpact[first.section] ||
-        scoreRating(first.rating, first.polarity) -
-          scoreRating(second.rating, second.polarity),
-    )
-    .slice(0, 3);
-  const ratingLabel = (point: HighlightPoint) => point.section === "A"
-    ? ({ needs_work: "Nunca", good: "A veces", excellent: "Siempre" } as const)[point.rating]
-    : ratingOptions.find((option) => option.value === point.rating)?.label ?? point.rating;
-
   return (
     <main className="min-h-screen px-2 py-8 sm:px-6 font-primary">
       <article className="mx-auto flex w-full max-w-4xl flex-col items-center">
@@ -287,39 +239,20 @@ export default function Evaluacion() {
                 ) : step === "section-c" ? (
                   <SectionPermanencia data={permanenceData} onChange={setPermanenceData} onBack={() => setStep("section-b")} onSubmit={saveEvaluation} saving={saving} error={saveError} />
                 ) : (
-                  <div className="py-8 text-center">
-                    <p className="text-xs font-bold uppercase tracking-widest text-secondary">
-                      {saveStatus === "queued"
-                        ? "Guardada sin conexión"
-                        : "Evaluación guardada"}
-                    </p>
-                    <h3 className="mt-2 text-2xl font-semibold text-deepgreen">
-                      {saveStatus === "queued"
-                        ? "La evaluación se guardó en este dispositivo"
-                        : "La evaluación se guardó correctamente"}
-                    </h3>
+                  <div className="mx-auto max-w-xl py-8 text-center">
+                    <p className="text-xs font-bold uppercase tracking-widest text-secondary">Evaluación terminada</p>
+                    <h3 className="mt-2 text-2xl font-semibold text-deepgreen">La evaluación se completó correctamente</h3>
                     {saveStatus === "queued" && (
                       <p className="mx-auto mt-2 max-w-xl rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
-                        Se enviará automáticamente cuando vuelva la conexión.
+                        Se guardó en este dispositivo y se enviará automáticamente cuando vuelva la conexión.
                       </p>
                     )}
-                    <p className="mt-4 text-4xl font-bold text-secondary">
-                      {savedWeightedScore} / 100
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">A 70% · B 30%</p>
-                    <div className="mt-8 grid gap-4 text-left sm:grid-cols-2">
-                      <ResultHighlights
-                        title="Puntos fuertes"
-                        points={strongestPoints}
-                        tone="strong"
-                        ratingLabel={ratingLabel}
-                      />
-                      <ResultHighlights
-                        title="Puntos a mejorar"
-                        points={weakestPoints}
-                        tone="weak"
-                        ratingLabel={ratingLabel}
-                      />
+                    <div className="mt-7 space-y-4 text-left">
+                      <section className={`rounded-xl border p-4 ${permanenceData.recommendNextSeason === "yes" ? "border-primary/40 bg-tertiary" : "border-amber-200 bg-amber-50"}`}>
+                        <p className="text-xs font-bold uppercase tracking-wide text-secondary">Recomendación para la próxima temporada</p>
+                        <p className="mt-2 text-2xl font-bold text-deepgreen">{permanenceData.recommendNextSeason === "yes" ? "Sí" : "No"}</p>
+                        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{permanenceData.explanation}</p>
+                      </section>
                     </div>
                     <button
                       type="button"
@@ -452,97 +385,6 @@ function ReadOnlyMatricula({ id, value }: { id: string; value?: string }) {
       />
     </label>
   );
-}
-
-type HighlightPoint = {
-  id: string;
-  title: string;
-  section: "A" | "B";
-  rating: Rating;
-  polarity: "positive" | "negative";
-};
-function ResultHighlights({
-  title,
-  points,
-  tone,
-  ratingLabel,
-}: {
-  title: string;
-  points: HighlightPoint[];
-  tone: "strong" | "weak";
-  ratingLabel: (point: HighlightPoint) => string;
-}) {
-  return (
-    <section
-      className={`rounded-xl border p-4 ${tone === "strong" ? "border-primary/40 bg-tertiary" : "border-amber-200 bg-amber-50"}`}
-    >
-      <h4 className="font-secondary text-lg font-bold text-deepgreen">
-        {title}
-      </h4>
-      {points.length ? (
-        <ul className="mt-3 space-y-2">
-          {points.map((point) => (
-            <li
-              key={`${point.section}-${point.id}`}
-              className="rounded-lg bg-white px-3 py-2.5 text-sm"
-            >
-              <p className="font-semibold leading-5 text-slate-900">
-                {point.title}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-bold uppercase tracking-wide text-secondary">
-                  Sección {point.section}
-                </span>
-                <span
-                  className={`rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-900 ${point.rating === "good" ? "font-bold" : "font-medium"}`}
-                >
-                  {ratingLabel(point)}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-3 text-sm text-slate-600">
-          Ningún punto identificado.
-        </p>
-      )}
-    </section>
-  );
-}
-
-function calculateWeightedScore(payload: OfflineEvaluationPayload) {
-  const applicableA = sectionBQuestions.filter(
-    (question) => payload.workType === "campo" || !question.campoOnly,
-  );
-  const sectionAScore = applicableA.length
-    ? (applicableA.reduce((total, question) => {
-        const rating = payload.sectionB[question.id];
-        return total + (rating ? scoreRating(rating, question.polarity) : 0);
-      }, 0) /
-        (applicableA.length * 3)) *
-      70
-    : 0;
-  const total =
-    sectionAScore +
-    (payload.sectionC.finalRating
-      ? (scoreRating(payload.sectionC.finalRating, "positive") / 3) * 30
-      : 0);
-  return total.toFixed(2);
-}
-
-function scoreRating(rating: Rating, polarity: "positive" | "negative") {
-  const positiveScores: Record<Rating, number> = {
-    needs_work: 0,
-    good: 2,
-    excellent: 3,
-  };
-  const negativeScores: Record<Rating, number> = {
-    needs_work: 3,
-    good: 1,
-    excellent: 0,
-  };
-  return (polarity === "negative" ? negativeScores : positiveScores)[rating];
 }
 
 type EvaluationSyncStatus = ReturnType<typeof useEvaluationSync>;
