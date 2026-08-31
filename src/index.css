@@ -113,4 +113,9 @@ html {
   .print-evaluation textarea {
     resize: none;
   }
+
+  main > article:not(.print-evaluation) input[type="search"]::placeholder {
+    color: transparent !important;
+    opacity: 0 !important;
+  }
 }

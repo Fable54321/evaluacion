@@ -52,6 +52,7 @@ export default function Evaluacion() {
   const [saveStatus, setSaveStatus] = useState<"synced" | "queued">("synced");
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [printWorkType, setPrintWorkType] = useState<WorkType>("campo");
   const syncStatus = useEvaluationSync();
   const offlineShellStatus = useOfflineReadiness();
 
@@ -173,17 +174,30 @@ export default function Evaluacion() {
   };
   return (
     <main className="min-h-screen px-2 py-8 sm:px-6 font-primary">
-      <button
-        type="button"
-        onClick={() => window.print()}
-        className="print-button fixed right-3 top-3 z-30 flex size-9 items-center justify-center rounded-lg border border-secondary bg-white text-secondary shadow-sm transition hover:bg-tertiary sm:right-5 sm:top-5"
-        aria-label="Imprimir evaluación en blanco"
-        title="Imprimir evaluación en blanco"
-      >
-        <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z" />
-        </svg>
-      </button>
+      <div className="print-button fixed right-3 top-3 z-30 flex items-center gap-1.5 sm:right-5 sm:top-5">
+        <label htmlFor="print-work-type" className="sr-only">Versión para imprimir</label>
+        <select
+          id="print-work-type"
+          value={printWorkType}
+          onChange={(event) => setPrintWorkType(event.target.value as WorkType)}
+          className="h-9 rounded-lg border border-secondary bg-white px-2 text-xs font-bold text-secondary shadow-sm"
+          title="Versión para imprimir"
+        >
+          <option value="campo">Campo</option>
+          <option value="bodega">Bodega</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="flex size-9 items-center justify-center rounded-lg border border-secondary bg-white text-secondary shadow-sm transition hover:bg-tertiary"
+          aria-label={`Imprimir evaluación de ${printWorkType}`}
+          title={`Imprimir evaluación de ${printWorkType}`}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z" />
+          </svg>
+        </button>
+      </div>
       <article className="mx-auto flex w-full max-w-4xl flex-col items-center">
         <OfflineReadinessNotice
           shellStatus={offlineShellStatus}
@@ -363,21 +377,21 @@ export default function Evaluacion() {
           )
         )}
       </article>
-      <PrintEvaluation />
+      <PrintEvaluation workType={printWorkType} />
     </main>
   );
 }
 
-function PrintEvaluation() {
+function PrintEvaluation({ workType }: { workType: WorkType }) {
   const doNothing = () => undefined;
 
   return (
     <article className="print-evaluation" aria-hidden="true">
       <section className="print-section">
-        <SectionB answers={{}} workType="campo" onChange={doNothing} onBack={doNothing} onNext={doNothing} />
+        <SectionB answers={{}} workType={workType} onChange={doNothing} onBack={doNothing} onNext={doNothing} />
       </section>
       <section className="print-section mt-8">
-        <SectionC data={emptySectionCData} workType="campo" onChange={doNothing} onBack={doNothing} onSubmit={doNothing} saving={false} error="" />
+        <SectionC data={emptySectionCData} workType={workType} onChange={doNothing} onBack={doNothing} onSubmit={doNothing} saving={false} error="" />
       </section>
       <section className="print-section mt-8">
         <SectionPermanencia data={emptyPermanenceData} onChange={doNothing} onBack={doNothing} onSubmit={doNothing} saving={false} error="" />
