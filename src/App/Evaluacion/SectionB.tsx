@@ -8,7 +8,7 @@ const behaviorRatingOptions: Array<{ value: Rating; label: string }> = [
   { value: "good", label: "A veces" },
   { value: "excellent", label: "Siempre" },
 ];
-const negativeQuestionNumbers = new Set([1, 2, 9, 13, 14, 15, 16, 17, 18, 28, 29, 34]);
+const negativeQuestionNumbers = new Set([1, 2, 9, 13, 14, 15, 16, 17, 18, 28, 29, 33]);
 // eslint-disable-next-line react-refresh/only-export-components
 export const sectionBQuestions = [
   "¿El empleado llega tarde para tomar el bus?",
@@ -34,14 +34,13 @@ export const sectionBQuestions = [
   "¿El empleado mantiene los vehículos limpios?",
   "¿El empleado tiene una buena actitud?",
   "¿El empleado evita tomar riesgos inútiles?",
-  "¿El empleado tiene un buen rendimiento constante?",
+  "¿El empleado mantiene un buen rendimiento?",
   "¿El empleado respeta las reglas y políticas de la finca?",
   "¿El empleado brinda un trabajo de calidad?",
   "¿El empleado cuida su material de trabajo?",
   "¿El empleado distrae constantemente a sus compañeros de trabajo?",
   "¿El empleado hace comentarios sexuales, irrespetuosos o agresivos hacia otros compañeros?",
   "¿El empleado sigue el ritmo de los demás?",
-  "¿El empleado muestra un rendimiento constante?",
   "¿El empleado muestra voluntad de aprender?",
   "¿El empleado puede realizar su trabajo de manera independiente?",
   "¿El empleado necesita ser vigilado?",
