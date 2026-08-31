@@ -173,6 +173,17 @@ export default function Evaluacion() {
   };
   return (
     <main className="min-h-screen px-2 py-8 sm:px-6 font-primary">
+      <button
+        type="button"
+        onClick={() => window.print()}
+        className="print-button fixed right-3 top-3 z-30 flex size-9 items-center justify-center rounded-lg border border-secondary bg-white text-secondary shadow-sm transition hover:bg-tertiary sm:right-5 sm:top-5"
+        aria-label="Imprimir evaluación en blanco"
+        title="Imprimir evaluación en blanco"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z" />
+        </svg>
+      </button>
       <article className="mx-auto flex w-full max-w-4xl flex-col items-center">
         <OfflineReadinessNotice
           shellStatus={offlineShellStatus}
@@ -182,7 +193,7 @@ export default function Evaluacion() {
         {draftStatus !== "idle" && (
           <p
             aria-live="polite"
-            className="mb-3 w-[min(100%,800px)] text-right text-xs font-semibold text-slate-600"
+            className="print-hide mb-3 w-[min(100%,800px)] text-right text-xs font-semibold text-slate-600"
           >
             {draftStatus === "saving"
               ? "Guardando borrador…"
@@ -352,7 +363,26 @@ export default function Evaluacion() {
           )
         )}
       </article>
+      <PrintEvaluation />
     </main>
+  );
+}
+
+function PrintEvaluation() {
+  const doNothing = () => undefined;
+
+  return (
+    <article className="print-evaluation" aria-hidden="true">
+      <section className="print-section">
+        <SectionB answers={{}} workType="campo" onChange={doNothing} onBack={doNothing} onNext={doNothing} />
+      </section>
+      <section className="print-section mt-8">
+        <SectionC data={emptySectionCData} workType="campo" onChange={doNothing} onBack={doNothing} onSubmit={doNothing} saving={false} error="" />
+      </section>
+      <section className="print-section mt-8">
+        <SectionPermanencia data={emptyPermanenceData} onChange={doNothing} onBack={doNothing} onSubmit={doNothing} saving={false} error="" />
+      </section>
+    </article>
   );
 }
 
@@ -379,7 +409,7 @@ function OfflineReadinessNotice({
   return (
     <aside
       aria-live="polite"
-      className={`mb-3 flex w-[min(100%,800px)] items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${appearance}`}
+      className={`print-hide mb-3 flex w-[min(100%,800px)] items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${appearance}`}
     >
       <span
         className={`size-2.5 shrink-0 rounded-full ${ready ? "bg-primary" : unavailable ? "bg-amber-500" : "bg-blue-500"}`}
@@ -535,7 +565,7 @@ function SyncStatus({ status }: { status: EvaluationSyncStatus }) {
   return (
     <aside
       aria-live="polite"
-      className={`mb-5 flex w-[min(100%,800px)] flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${appearance}`}
+      className={`print-hide mb-5 flex w-[min(100%,800px)] flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${appearance}`}
     >
       <span className="flex items-center gap-2">
         <span

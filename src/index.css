@@ -43,3 +43,74 @@ body,
 html {
   font-size: 125%;
 }
+
+.print-evaluation {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: auto;
+    margin: 12mm;
+  }
+
+  html {
+    font-size: 10pt;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: auto;
+    background: white;
+  }
+
+  .print-button,
+  .print-hide,
+  main button {
+    display: none !important;
+  }
+
+  main {
+    min-height: auto !important;
+    padding: 0 !important;
+  }
+
+  .print-evaluation {
+    display: block;
+    width: 100%;
+    color: #0f172a;
+  }
+
+  .print-evaluation button {
+    display: none !important;
+  }
+
+  .print-evaluation .sticky {
+    position: static !important;
+  }
+
+  .print-evaluation fieldset,
+  .print-evaluation .rating-option,
+  .print-evaluation label {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-evaluation .print-section {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .print-evaluation input,
+  .print-evaluation textarea,
+  .print-evaluation select {
+    color: transparent !important;
+    background: white !important;
+    print-color-adjust: exact;
+  }
+
+  .print-evaluation textarea {
+    resize: none;
+  }
+}
