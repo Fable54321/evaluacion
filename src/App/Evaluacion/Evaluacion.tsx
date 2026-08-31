@@ -117,11 +117,9 @@ export default function Evaluacion() {
   }, [step]);
 
   const selectedEvaluator =
-    evaluators.find((worker) => String(worker.id) === selectedEvaluatorId) ??
-    evaluators[0];
+    evaluators.find((worker) => String(worker.id) === selectedEvaluatorId);
   const selectedWorker =
-    workers.find((worker) => String(worker.id) === selectedWorkerId) ??
-    workers[0];
+    workers.find((worker) => String(worker.id) === selectedWorkerId);
   const evaluatorValue = selectedEvaluator ? String(selectedEvaluator.id) : "";
   const workerValue = selectedWorker ? String(selectedWorker.id) : "";
   const beginEvaluation = (event: FormEvent) => {
