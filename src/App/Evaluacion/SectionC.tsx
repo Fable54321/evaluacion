@@ -162,7 +162,8 @@ export default function SectionC({
               name="fieldNumber"
               value={data.fieldNumber}
               onChange={(value) => update("fieldNumber", value)}
-              placeholder="Ej.: 12"
+            placeholder="Ej.: 12"
+            maxLength={50}
             />
           )}
         </div>
@@ -188,6 +189,7 @@ export default function SectionC({
               value={data.otherCrop ?? ""}
               onChange={(event) => update("otherCrop", event.target.value)}
               placeholder="Especifique el tipo de cultivo"
+              maxLength={100}
               required
               className=" mt-1 block w-full rounded-lg border-2 border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-secondary focus:ring-2 focus:ring-primary/30"
             />
@@ -201,6 +203,7 @@ export default function SectionC({
               value={data.weatherConditions}
               onChange={(value) => update("weatherConditions", value)}
               placeholder="Ej.: soleado, lluvia, nublado…"
+              maxLength={200}
             />
             <TextField
               label="Condiciones del terreno"
@@ -208,6 +211,7 @@ export default function SectionC({
               value={data.terrainConditions}
               onChange={(value) => update("terrainConditions", value)}
               placeholder="Ej.: subida, lodo, plano…"
+              maxLength={200}
             />
           </div>
         )}
@@ -235,6 +239,7 @@ export default function SectionC({
             value={data.otherTask}
             onChange={(value) => update("otherTask", value)}
             placeholder="Especifique la tarea"
+            maxLength={150}
             required
           />
         )}
@@ -254,6 +259,7 @@ export default function SectionC({
             value={data.taskSpecification}
             onChange={(value) => update("taskSpecification", value)}
             placeholder="especifica la tarea"
+            maxLength={300}
             required
           />
         </div>
@@ -273,6 +279,7 @@ export default function SectionC({
             onChange={(value) => update("quantity", value)}
             placeholder="0.5"
             min="0.5"
+            max="1000000"
             step="0.5"
             required
           />
@@ -282,6 +289,7 @@ export default function SectionC({
             value={data.unit}
             onChange={(value) => update("unit", value)}
             placeholder="Ej.: cajas, metros, pasos"
+            maxLength={50}
             required
           />
         </div>
@@ -295,6 +303,7 @@ export default function SectionC({
           onChange={(event) => update("observations", event.target.value)}
           className={`${fieldClass} resize-y font-primary font-normal`}
           placeholder="Si el empleado no se pudo evaluar, explique por qué. Añada cualquier observación pertinente."
+          maxLength={2000}
         />
       </label>
       <fieldset className="rounded-lg border border-gray-200 p-4">
@@ -359,7 +368,9 @@ type TextFieldProps = {
   placeholder?: string;
   required?: boolean;
   min?: string;
+  max?: string;
   step?: string;
+  maxLength?: number;
 };
 function TextField({ label, onChange, ...inputProps }: TextFieldProps) {
   return (

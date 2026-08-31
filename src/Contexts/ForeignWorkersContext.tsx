@@ -131,7 +131,14 @@ export function ForeignWorkersProvider({ children }: { children: ReactNode }) {
 
       setForeignWorkers(data);
       setError("");
-      await cacheWorkers(data);
+      await cacheWorkers(data.map((worker) => ({
+        id: worker.id,
+        name: worker.name,
+        surname: worker.surname,
+        matricula: worker.matricula,
+        job_id_1: worker.job_id_1 ?? null,
+        job_id_2: worker.job_id_2 ?? null,
+      })));
     } catch (error) {
       const cachedWorkers = await getCachedWorkers<Worker>().catch(() => []);
       if (cachedWorkers.length) {
