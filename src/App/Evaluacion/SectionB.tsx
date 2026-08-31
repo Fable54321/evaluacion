@@ -70,6 +70,7 @@ export default function SectionB({
   onNext,
 }: Props) {
   const [warning, setWarning] = useState("");
+  const [firstMissingQuestionId, setFirstMissingQuestionId] = useState("");
   const questions = sectionBQuestions.filter(
     (question) => !question.campoOnly || workType === "campo",
   );
@@ -97,12 +98,17 @@ export default function SectionB({
 
             </div>
             <div className="space-y-3">{groupQuestions.map((question, index) => (
-              <fieldset key={question.id} className="rounded-xl border border-slate-200 p-4">
+              <fieldset
+                key={question.id}
+                id={`section-a-${question.id}`}
+                aria-invalid={firstMissingQuestionId === question.id}
+                className={`scroll-mt-28 rounded-xl border p-4 ${firstMissingQuestionId === question.id ? "border-red-400 bg-red-50 ring-2 ring-red-200" : "border-slate-200"}`}
+              >
                 <legend className="sr-only">Pregunta {index + 1}</legend>
                 <p className="text-sm font-medium leading-6 text-slate-800"><span className="mr-1 font-bold text-secondary">{index + 1}.</span>{question.question}</p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-3">{behaviorRatingOptions.map((option) => (
                   <label key={option.value} className={`rating-option ${answers[question.id] === option.value ? "rating-option-selected" : ""}`}>
-                    <input type="radio" name={`section-a-${question.id}`} checked={answers[question.id] === option.value} onChange={() => { onChange({ ...answers, [question.id]: option.value }); setWarning(""); }} className="size-4 accent-secondary" />
+                    <input type="radio" name={`section-a-${question.id}`} checked={answers[question.id] === option.value} onChange={() => { onChange({ ...answers, [question.id]: option.value }); setWarning(""); setFirstMissingQuestionId(""); }} className="size-4 accent-secondary" />
                     {option.label}
                   </label>
                 ))}</div>
@@ -126,10 +132,23 @@ export default function SectionB({
         <button
           type="button"
           onClick={() => {
-            if (!questions.every((question) => answers[question.id])) {
+            const firstMissingQuestion = questions.find(
+              (question) => !answers[question.id],
+            );
+            if (firstMissingQuestion) {
               setWarning(
                 "Debe completar todas las preguntas de la Sección A antes de continuar.",
               );
+              setFirstMissingQuestionId(firstMissingQuestion.id);
+              requestAnimationFrame(() => {
+                const fieldset = document.getElementById(
+                  `section-a-${firstMissingQuestion.id}`,
+                );
+                fieldset?.scrollIntoView({ behavior: "smooth", block: "start" });
+                fieldset
+                  ?.querySelector<HTMLInputElement>('input[type="radio"]')
+                  ?.focus({ preventScroll: true });
+              });
               return;
             }
             onNext();
