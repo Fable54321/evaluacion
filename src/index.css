@@ -118,4 +118,11 @@ html {
     color: transparent !important;
     opacity: 0 !important;
   }
+
+  main > article:not(.print-evaluation) input[type="search"],
+  main > article:not(.print-evaluation) input[type="search"]:-webkit-autofill {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    caret-color: transparent !important;
+  }
 }
