@@ -10,10 +10,24 @@ async function cacheApplicationShell() {
   const assetUrls = [...html.matchAll(/(?:src|href)=["']([^"']+)["']/g)]
     .map((match) => new URL(match[1], scopeUrl))
     .filter((url) => url.origin === scopeUrl.origin);
-  await Promise.allSettled(assetUrls.map(async (url) => {
+  await Promise.all(assetUrls.map(async (url) => {
     const assetResponse = await fetch(url);
-    if (assetResponse.ok) await cache.put(url, assetResponse);
+    if (!assetResponse.ok) throw new Error(`Unable to cache ${url.pathname}`);
+    await cache.put(url, assetResponse);
   }));
+}
+
+async function isApplicationShellCached() {
+  const cache = await caches.open(CACHE_NAME);
+  const scopeUrl = new URL("./", self.registration.scope);
+  const response = await cache.match(scopeUrl);
+  if (!response) return false;
+  const html = await response.text();
+  const assetUrls = [...html.matchAll(/(?:src|href)=["']([^"']+)["']/g)]
+    .map((match) => new URL(match[1], scopeUrl))
+    .filter((url) => url.origin === scopeUrl.origin);
+  const cachedAssets = await Promise.all(assetUrls.map((url) => cache.match(url)));
+  return cachedAssets.every(Boolean);
 }
 
 self.addEventListener("install", (event) => {
@@ -22,6 +36,13 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(caches.keys().then((names) => Promise.all(names.filter((name) => name.startsWith("vegibec-evaluacion-shell-") && name !== CACHE_NAME).map((name) => caches.delete(name)))).then(() => self.clients.claim()));
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "CHECK_OFFLINE_READY") return;
+  event.waitUntil(isApplicationShellCached().then((ready) => {
+    event.ports[0]?.postMessage({ ready });
+  }));
 });
 
 self.addEventListener("fetch", (event) => {

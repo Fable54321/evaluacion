@@ -6,6 +6,7 @@ import SectionPermanencia, { emptyPermanenceData, type PermanenceData } from "./
 import { submitEvaluation } from "../../Utils/offlineSync";
 import type { OfflineEvaluationPayload } from "../../Utils/offlineDb";
 import { useEvaluationSync } from "../../Hooks/useEvaluationSync";
+import { useOfflineReadiness } from "../../Hooks/useOfflineReadiness";
 
 type WorkType = "bodega" | "campo";
 type Step = "setup" | "section-a" | "section-b" | "section-c" | "complete";
@@ -42,6 +43,7 @@ export default function Evaluacion() {
   );
   const [saveStatus, setSaveStatus] = useState<"synced" | "queued">("synced");
   const syncStatus = useEvaluationSync();
+  const offlineShellStatus = useOfflineReadiness();
 
   useEffect(() => {
     if (step !== "setup") window.scrollTo({ top: 0, behavior: "smooth" });
@@ -104,6 +106,10 @@ export default function Evaluacion() {
   return (
     <main className="min-h-screen px-2 py-8 sm:px-6 font-primary">
       <article className="mx-auto flex w-full max-w-4xl flex-col items-center">
+        <OfflineReadinessNotice
+          shellStatus={offlineShellStatus}
+          workersReady={!workersListLoading && foreignWorkers.length > 0}
+        />
         <SyncStatus status={syncStatus} />
         <h1 className="text-center font-secondary text-2xl font-semibold text-deepgreen sm:text-3xl">
           Evaluación de rendimiento
@@ -269,6 +275,39 @@ export default function Evaluacion() {
         )}
       </article>
     </main>
+  );
+}
+
+function OfflineReadinessNotice({
+  shellStatus,
+  workersReady,
+}: {
+  shellStatus: ReturnType<typeof useOfflineReadiness>;
+  workersReady: boolean;
+}) {
+  const ready = shellStatus === "ready" && workersReady;
+  const unavailable = shellStatus === "unavailable";
+  const appearance = ready
+    ? "border-primary bg-tertiary text-deepgreen"
+    : unavailable
+      ? "border-amber-300 bg-amber-50 text-amber-950"
+      : "border-blue-200 bg-blue-50 text-blue-900";
+  const message = ready
+    ? "Aplicación lista para usar sin Wi-Fi"
+    : unavailable
+      ? "No se pudo preparar la aplicación para usar sin Wi-Fi"
+      : "Preparando la aplicación para usar sin Wi-Fi…";
+
+  return (
+    <aside
+      aria-live="polite"
+      className={`mb-3 flex w-[min(100%,800px)] items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${appearance}`}
+    >
+      <span
+        className={`size-2.5 shrink-0 rounded-full ${ready ? "bg-primary" : unavailable ? "bg-amber-500" : "bg-blue-500"}`}
+      />
+      {message}
+    </aside>
   );
 }
 
