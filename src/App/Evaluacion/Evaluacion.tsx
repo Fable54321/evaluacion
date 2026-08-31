@@ -4,14 +4,22 @@ import SectionB, { type SectionBAnswers } from "./SectionB";
 import SectionC, { emptySectionCData, type SectionCData } from "./SectionC";
 import SectionPermanencia, { emptyPermanenceData, type PermanenceData } from "./SectionPermanencia";
 import { submitEvaluation } from "../../Utils/offlineSync";
-import type { OfflineEvaluationPayload } from "../../Utils/offlineDb";
+import {
+  deleteEvaluationDraft,
+  getEvaluationDraft,
+  saveEvaluationDraft,
+  type EvaluationDraft,
+  type OfflineEvaluationPayload,
+} from "../../Utils/offlineDb";
 import { useEvaluationSync } from "../../Hooks/useEvaluationSync";
 import { useOfflineReadiness } from "../../Hooks/useOfflineReadiness";
+import { useAuth } from "../../Contexts/AuthContext";
 
 type WorkType = "bodega" | "campo";
 type Step = "setup" | "section-a" | "section-b" | "section-c" | "complete";
 
 export default function Evaluacion() {
+  const { user } = useAuth();
   const { foreignWorkers, workersListLoading, error } = useForeignWorkers();
   const evaluators = useMemo(
     () =>
@@ -38,12 +46,71 @@ export default function Evaluacion() {
   const [permanenceData, setPermanenceData] = useState<PermanenceData>(emptyPermanenceData);
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [clientSubmissionId, setClientSubmissionId] = useState(() =>
+  const [clientSubmissionId, setClientSubmissionId] = useState<string>(() =>
     crypto.randomUUID(),
   );
   const [saveStatus, setSaveStatus] = useState<"synced" | "queued">("synced");
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved">("idle");
   const syncStatus = useEvaluationSync();
   const offlineShellStatus = useOfflineReadiness();
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void getEvaluationDraft(user.id).then((draft) => {
+      if (cancelled) return;
+      if (draft) {
+        setSelectedEvaluatorId(String(draft.evaluatorId));
+        setSelectedWorkerId(String(draft.evaluatedWorkerId));
+        setWorkType(draft.workType);
+        setPositionTitle(draft.positionTitle);
+        setSectionBAnswers(draft.sectionB);
+        setSectionCData(draft.sectionC);
+        setPermanenceData(draft.permanence);
+        setClientSubmissionId(draft.clientSubmissionId);
+        setStep(draft.step);
+        setDraftStatus("saved");
+      }
+      setDraftLoaded(true);
+    }).catch(() => {
+      if (!cancelled) setDraftLoaded(true);
+    });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !draftLoaded || step === "complete") return;
+    const hasProgress = Boolean(
+      selectedWorkerId || workType || positionTitle.trim() ||
+      Object.keys(sectionBAnswers).length || sectionCData.finalRating ||
+      permanenceData.recommendNextSeason,
+    );
+    if (!hasProgress) return;
+    const timeout = window.setTimeout(() => {
+      setDraftStatus("saving");
+      const draft: EvaluationDraft = {
+        userId: user.id,
+        clientSubmissionId,
+        evaluatorId: Number(selectedEvaluatorId || evaluators[0]?.id || 0),
+        evaluatedWorkerId: Number(selectedWorkerId || workers[0]?.id || 0),
+        workType: workType || "campo",
+        positionTitle,
+        sectionA: {},
+        sectionB: sectionBAnswers,
+        sectionC: sectionCData,
+        permanence: permanenceData,
+        step,
+        updatedAt: new Date().toISOString(),
+      };
+      void saveEvaluationDraft(draft).then(() => setDraftStatus("saved"));
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [
+    user, draftLoaded, step, selectedEvaluatorId, selectedWorkerId, workType,
+    positionTitle, sectionBAnswers, sectionCData, permanenceData,
+    clientSubmissionId, evaluators, workers,
+  ]);
 
   useEffect(() => {
     if (step !== "setup") window.scrollTo({ top: 0, behavior: "smooth" });
@@ -79,7 +146,9 @@ export default function Evaluacion() {
         permanence: permanenceData,
       };
       const result = await submitEvaluation(payload);
+      if (user) await deleteEvaluationDraft(user.id).catch(() => undefined);
       setSaveStatus(result.status);
+      setDraftStatus("idle");
       setStep("complete");
     } catch (error) {
       setSaveError(
@@ -92,6 +161,7 @@ export default function Evaluacion() {
     }
   };
   const startNextEvaluation = () => {
+    if (user) void deleteEvaluationDraft(user.id);
     setSelectedWorkerId("");
     setWorkType("");
     setPositionTitle("");
@@ -111,6 +181,16 @@ export default function Evaluacion() {
           workersReady={!workersListLoading && foreignWorkers.length > 0}
         />
         <SyncStatus status={syncStatus} />
+        {draftStatus !== "idle" && (
+          <p
+            aria-live="polite"
+            className="mb-3 w-[min(100%,800px)] text-right text-xs font-semibold text-slate-600"
+          >
+            {draftStatus === "saving"
+              ? "Guardando borrador…"
+              : "Borrador guardado en este dispositivo"}
+          </p>
+        )}
         <h1 className="text-center font-secondary text-2xl font-semibold text-deepgreen sm:text-3xl">
           Evaluación de rendimiento
         </h1>

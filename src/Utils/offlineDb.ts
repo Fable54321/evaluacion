@@ -4,9 +4,10 @@ import type { SectionCData } from "../App/Evaluacion/SectionC";
 import type { PermanenceData } from "../App/Evaluacion/SectionPermanencia";
 
 const DATABASE_NAME = "vegibec-evaluacion";
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const WORKERS_STORE = "workers";
 const OUTBOX_STORE = "evaluationOutbox";
+const DRAFTS_STORE = "evaluationDrafts";
 export const OUTBOX_CHANGE_EVENT = "evaluation-outbox-change";
 
 function notifyOutboxChange() {
@@ -34,6 +35,12 @@ export type OutboxEvaluation = {
   lastError: string | null;
 };
 
+export type EvaluationDraft = OfflineEvaluationPayload & {
+  userId: number;
+  step: "setup" | "section-a" | "section-b" | "section-c";
+  updatedAt: string;
+};
+
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
@@ -46,8 +53,43 @@ function openDatabase(): Promise<IDBDatabase> {
         const outbox = database.createObjectStore(OUTBOX_STORE, { keyPath: "clientSubmissionId" });
         outbox.createIndex("createdAt", "createdAt");
       }
+      if (!database.objectStoreNames.contains(DRAFTS_STORE)) {
+        database.createObjectStore(DRAFTS_STORE, { keyPath: "userId" });
+      }
     };
   });
+}
+
+export async function saveEvaluationDraft(draft: EvaluationDraft) {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(DRAFTS_STORE, "readwrite");
+    transaction.objectStore(DRAFTS_STORE).put(draft);
+    await waitForTransaction(transaction);
+  } finally {
+    database.close();
+  }
+}
+
+export async function getEvaluationDraft(userId: number): Promise<EvaluationDraft | null> {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(DRAFTS_STORE, "readonly");
+    return (await requestResult(transaction.objectStore(DRAFTS_STORE).get(userId)) as EvaluationDraft | undefined) ?? null;
+  } finally {
+    database.close();
+  }
+}
+
+export async function deleteEvaluationDraft(userId: number) {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(DRAFTS_STORE, "readwrite");
+    transaction.objectStore(DRAFTS_STORE).delete(userId);
+    await waitForTransaction(transaction);
+  } finally {
+    database.close();
+  }
 }
 
 function waitForTransaction(transaction: IDBTransaction): Promise<void> {
