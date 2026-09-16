@@ -31,7 +31,7 @@ const router = createBrowserRouter([
         element: <Evaluacion />
       },
       {
-        path: "variacion-de-desempeño ",
+        path: "variacion-de-desempeno",
         element: <PerformanceVariationAlert />
       }
     ]

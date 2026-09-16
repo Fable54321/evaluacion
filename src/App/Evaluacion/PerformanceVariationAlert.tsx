@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import {
+  useForeignWorkers,
+  type Worker,
+} from "../../Contexts/ForeignWorkersContext";
 
 type AlertLevel = "red" | "yellow" | "green";
 type Timeframe = "today" | "few_days" | "this_week" | "since_arrival" | "unsure";
@@ -61,10 +65,33 @@ const actionOptions = [
 ] as const;
 
 export default function PerformanceVariationAlert() {
+  const { foreignWorkers, workersListLoading, error } = useForeignWorkers();
+  const teamLeaders = useMemo(
+    () =>
+      foreignWorkers.filter(
+        (worker) => worker.job_id_1 === 6 || worker.job_id_2 === 6,
+      ),
+    [foreignWorkers],
+  );
+  const employees = useMemo(
+    () =>
+      foreignWorkers.filter(
+        (worker) => worker.job_id_1 !== 6 && worker.job_id_2 !== 6,
+      ),
+    [foreignWorkers],
+  );
+  const [selectedTeamLeaderId, setSelectedTeamLeaderId] = useState("");
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [alertLevel, setAlertLevel] = useState<AlertLevel | "">("");
   const [situations, setSituations] = useState<string[]>([]);
   const [timeframe, setTimeframe] = useState<Timeframe | "">("");
   const [actions, setActions] = useState<string[]>([]);
+  const selectedTeamLeader = teamLeaders.find(
+    (worker) => String(worker.id) === selectedTeamLeaderId,
+  );
+  const selectedEmployee = employees.find(
+    (worker) => String(worker.id) === selectedEmployeeId,
+  );
 
   const toggleSelection = (
     value: string,
@@ -92,19 +119,52 @@ export default function PerformanceVariationAlert() {
             Formulario breve para reportar cambios en el desempeño o la actitud de un empleado,
             facilitar el seguimiento y ofrecer apoyo oportuno.
           </p>
-          <p className="mt-4 inline-flex rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-            Borrador local · este formulario todavía no se envía
-          </p>
+         
         </header>
 
         <form onSubmit={(event) => event.preventDefault()} className="space-y-8 p-5 sm:p-8">
           <section aria-labelledby="employee-heading">
             <SectionHeading number="1" id="employee-heading">
-              Identificación del empleado
+              Jefe de equipo y empleado
             </SectionHeading>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <TextField id="employee-name" label="Nombre del empleado" placeholder="Nombre y apellido" />
-              <TextField id="employee-number" label="Matrícula" placeholder="Número de matrícula" />
+            {workersListLoading && (
+              <p className="mt-4 text-sm text-slate-600">Cargando trabajadores…</p>
+            )}
+            {error && (
+              <p
+                role="alert"
+                className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700"
+              >
+                {error}
+              </p>
+            )}
+            <div className="mt-4 grid gap-5 sm:grid-cols-2">
+              <div className="space-y-3">
+                <SearchableWorkerSelect
+                  id="team-leader"
+                  label="Nombre del jefe de equipo"
+                  value={selectedTeamLeaderId}
+                  onChange={setSelectedTeamLeaderId}
+                  options={teamLeaders}
+                />
+                <ReadOnlyMatricula
+                  id="team-leader-matricula"
+                  value={selectedTeamLeader?.matricula}
+                />
+              </div>
+              <div className="space-y-3">
+                <SearchableWorkerSelect
+                  id="employee"
+                  label="Nombre del empleado"
+                  value={selectedEmployeeId}
+                  onChange={setSelectedEmployeeId}
+                  options={employees}
+                />
+                <ReadOnlyMatricula
+                  id="employee-matricula"
+                  value={selectedEmployee?.matricula}
+                />
+              </div>
             </div>
           </section>
 
@@ -251,17 +311,110 @@ function SectionHeading({
   );
 }
 
-function TextField({ id, label, placeholder }: { id: string; label: string; placeholder: string }) {
+function titleCaseName(value: string) {
+  return value
+    .trim()
+    .toLocaleLowerCase("es")
+    .replace(/(^|[\s'-])\p{L}/gu, (letter) => letter.toLocaleUpperCase("es"));
+}
+
+function formatWorkerName(worker: Worker) {
+  return `${titleCaseName(worker.surname)} ${titleCaseName(worker.name)}`;
+}
+
+function normalizeSearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("es");
+}
+
+function SearchableWorkerSelect({
+  id,
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Worker[];
+}) {
+  const [query, setQuery] = useState("");
+  const [editing, setEditing] = useState(false);
+  const selected = options.find((worker) => String(worker.id) === value);
+  const normalizedQuery = normalizeSearch(query);
+  const filteredWorkers = options.filter((worker) =>
+    normalizeSearch(
+      `${worker.name} ${worker.surname} ${worker.surname} ${worker.name} ${worker.matricula}`,
+    ).includes(normalizedQuery),
+  );
+
   return (
-    <label htmlFor={id} className="flex flex-col gap-2 text-sm font-semibold text-slate-800">
-      {label}
+    <div className="relative flex flex-col gap-2 text-sm font-semibold text-slate-800">
+      <label htmlFor={id}>{label}</label>
       <input
         id={id}
-        name={id}
-        type="text"
+        type="search"
         autoComplete="off"
-        placeholder={placeholder}
+        value={editing ? query : selected ? formatWorkerName(selected) : ""}
+        onFocus={() => {
+          setEditing(true);
+          setQuery("");
+        }}
+        onChange={(event) => setQuery(event.target.value)}
+        onBlur={() => setEditing(false)}
+        disabled={!options.length}
+        placeholder={
+          options.length
+            ? "Buscar por nombre o matrícula…"
+            : "No hay trabajadores disponibles"
+        }
         className="rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-sm font-normal outline-none transition focus:border-secondary focus:ring-2 focus:ring-primary/30"
+      />
+      {editing && (
+        <div className="absolute top-full z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+          {filteredWorkers.length ? (
+            filteredWorkers.map((worker) => (
+              <button
+                key={worker.id}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onChange(String(worker.id));
+                  setEditing(false);
+                  setQuery("");
+                }}
+                className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm font-medium hover:bg-tertiary"
+              >
+                <span>{formatWorkerName(worker)}</span>
+                <span className="shrink-0 font-bold text-secondary">
+                  {worker.matricula}
+                </span>
+              </button>
+            ))
+          ) : (
+            <p className="px-3 py-2 text-sm font-normal text-slate-500">
+              No se encontraron trabajadores.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReadOnlyMatricula({ id, value }: { id: string; value?: string }) {
+  return (
+    <label htmlFor={id} className="flex flex-col gap-2 text-sm font-semibold text-slate-800">
+      Matrícula
+      <input
+        id={id}
+        value={value ?? ""}
+        readOnly
+        className="rounded-lg border-2 border-slate-300 bg-tertiary/60 px-3 py-2.5 text-sm font-bold text-secondary"
       />
     </label>
   );
