@@ -1,7 +1,4 @@
-import type { Rating } from "../App/Evaluacion/ratings";
-import type { SectionBAnswers } from "../App/Evaluacion/SectionB";
-import type { SectionCData } from "../App/Evaluacion/SectionC";
-import type { PermanenceData } from "../App/Evaluacion/SectionPermanencia";
+import type { MonthlyAnswers } from "../App/Evaluacion/MonthlyEvaluation";
 
 const DATABASE_NAME = "vegibec-evaluacion";
 const DATABASE_VERSION = 2;
@@ -15,15 +12,13 @@ function notifyOutboxChange() {
 }
 
 export type OfflineEvaluationPayload = {
+  schemaVersion: 3;
   clientSubmissionId: string;
   evaluatorId: number;
   evaluatedWorkerId: number;
-  workType: "bodega" | "campo";
-  positionTitle: string;
-  sectionA: Record<string, Rating>;
-  sectionB: SectionBAnswers;
-  sectionC: SectionCData;
-  permanence: PermanenceData;
+  evaluationType: "one_to_two_seasons";
+  answers: MonthlyAnswers;
+  comments: string;
 };
 
 export type OutboxEvaluation = {
@@ -37,7 +32,7 @@ export type OutboxEvaluation = {
 
 export type EvaluationDraft = OfflineEvaluationPayload & {
   userId: number;
-  step: "setup" | "section-a" | "section-b" | "section-c";
+  step: "setup" | "evaluation";
   updatedAt: string;
 };
 
@@ -75,7 +70,8 @@ export async function getEvaluationDraft(userId: number): Promise<EvaluationDraf
   const database = await openDatabase();
   try {
     const transaction = database.transaction(DRAFTS_STORE, "readonly");
-    return (await requestResult(transaction.objectStore(DRAFTS_STORE).get(userId)) as EvaluationDraft | undefined) ?? null;
+    const draft = await requestResult(transaction.objectStore(DRAFTS_STORE).get(userId)) as EvaluationDraft | undefined;
+    return draft?.schemaVersion === 3 ? draft : null;
   } finally {
     database.close();
   }

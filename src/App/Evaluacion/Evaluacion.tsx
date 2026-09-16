@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useForeignWorkers } from "../../Contexts/ForeignWorkersContext";
-import SectionB, { type SectionBAnswers } from "./SectionB";
-import SectionC, { emptySectionCData, type SectionCData } from "./SectionC";
-import SectionPermanencia, { emptyPermanenceData, type PermanenceData } from "./SectionPermanencia";
+import MonthlyEvaluation, {
+  type MonthlyAnswers,
+} from "./MonthlyEvaluation";
 import { submitEvaluation } from "../../Utils/offlineSync";
 import {
   deleteEvaluationDraft,
@@ -15,8 +15,7 @@ import { useEvaluationSync } from "../../Hooks/useEvaluationSync";
 import { useOfflineReadiness } from "../../Hooks/useOfflineReadiness";
 import { useAuth } from "../../Contexts/AuthContext";
 
-type WorkType = "bodega" | "campo";
-type Step = "setup" | "section-a" | "section-b" | "section-c" | "complete";
+type Step = "setup" | "evaluation" | "complete";
 
 export default function Evaluacion() {
   const { user } = useAuth();
@@ -37,13 +36,9 @@ export default function Evaluacion() {
   );
   const [selectedEvaluatorId, setSelectedEvaluatorId] = useState("");
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
-  const [workType, setWorkType] = useState<WorkType | "">("");
-  const [positionTitle, setPositionTitle] = useState("");
   const [step, setStep] = useState<Step>("setup");
-  const [sectionBAnswers, setSectionBAnswers] = useState<SectionBAnswers>({});
-  const [sectionCData, setSectionCData] =
-    useState<SectionCData>(emptySectionCData);
-  const [permanenceData, setPermanenceData] = useState<PermanenceData>(emptyPermanenceData);
+  const [answers, setAnswers] = useState<MonthlyAnswers>({});
+  const [comments, setComments] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
   const [clientSubmissionId, setClientSubmissionId] = useState<string>(() =>
@@ -52,7 +47,6 @@ export default function Evaluacion() {
   const [saveStatus, setSaveStatus] = useState<"synced" | "queued">("synced");
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved">("idle");
-  const [printWorkType, setPrintWorkType] = useState<WorkType>("campo");
   const syncStatus = useEvaluationSync();
   const offlineShellStatus = useOfflineReadiness();
 
@@ -64,11 +58,8 @@ export default function Evaluacion() {
       if (draft) {
         setSelectedEvaluatorId(String(draft.evaluatorId));
         setSelectedWorkerId(String(draft.evaluatedWorkerId));
-        setWorkType(draft.workType);
-        setPositionTitle(draft.positionTitle);
-        setSectionBAnswers(draft.sectionB);
-        setSectionCData(draft.sectionC);
-        setPermanenceData(draft.permanence);
+        setAnswers(draft.answers);
+        setComments(draft.comments);
         setClientSubmissionId(draft.clientSubmissionId);
         setStep(draft.step);
         setDraftStatus("saved");
@@ -83,24 +74,20 @@ export default function Evaluacion() {
   useEffect(() => {
     if (!user || !draftLoaded || step === "complete") return;
     const hasProgress = Boolean(
-      selectedWorkerId || workType || positionTitle.trim() ||
-      Object.keys(sectionBAnswers).length || sectionCData.finalRating ||
-      permanenceData.recommendNextSeason,
+      selectedWorkerId || Object.keys(answers).length || comments.trim(),
     );
     if (!hasProgress) return;
     const timeout = window.setTimeout(() => {
       setDraftStatus("saving");
       const draft: EvaluationDraft = {
+        schemaVersion: 3,
         userId: user.id,
         clientSubmissionId,
         evaluatorId: Number(selectedEvaluatorId || evaluators[0]?.id || 0),
         evaluatedWorkerId: Number(selectedWorkerId || workers[0]?.id || 0),
-        workType: workType || "campo",
-        positionTitle,
-        sectionA: {},
-        sectionB: sectionBAnswers,
-        sectionC: sectionCData,
-        permanence: permanenceData,
+        evaluationType: "one_to_two_seasons",
+        answers,
+        comments,
         step,
         updatedAt: new Date().toISOString(),
       };
@@ -108,8 +95,7 @@ export default function Evaluacion() {
     }, 300);
     return () => window.clearTimeout(timeout);
   }, [
-    user, draftLoaded, step, selectedEvaluatorId, selectedWorkerId, workType,
-    positionTitle, sectionBAnswers, sectionCData, permanenceData,
+    user, draftLoaded, step, selectedEvaluatorId, selectedWorkerId, answers, comments,
     clientSubmissionId, evaluators, workers,
   ]);
 
@@ -125,24 +111,22 @@ export default function Evaluacion() {
   const workerValue = selectedWorker ? String(selectedWorker.id) : "";
   const beginEvaluation = (event: FormEvent) => {
     event.preventDefault();
-    if (selectedEvaluator && selectedWorker && workType && positionTitle.trim())
-      setStep("section-a");
+    if (selectedEvaluator && selectedWorker)
+      setStep("evaluation");
   };
   const saveEvaluation = async () => {
-    if (!selectedEvaluator || !selectedWorker || !workType) return;
+    if (!selectedEvaluator || !selectedWorker) return;
     try {
       setSaving(true);
       setSaveError("");
       const payload: OfflineEvaluationPayload = {
+        schemaVersion: 3,
         clientSubmissionId,
         evaluatorId: selectedEvaluator.id,
         evaluatedWorkerId: selectedWorker.id,
-        workType,
-        positionTitle: positionTitle.trim(),
-        sectionA: {},
-        sectionB: sectionBAnswers,
-        sectionC: sectionCData,
-        permanence: permanenceData,
+        evaluationType: "one_to_two_seasons",
+        answers,
+        comments: comments.trim(),
       };
       const result = await submitEvaluation(payload);
       if (user) await deleteEvaluationDraft(user.id).catch(() => undefined);
@@ -162,11 +146,8 @@ export default function Evaluacion() {
   const startNextEvaluation = () => {
     if (user) void deleteEvaluationDraft(user.id);
     setSelectedWorkerId("");
-    setWorkType("");
-    setPositionTitle("");
-    setSectionBAnswers({});
-    setSectionCData({ ...emptySectionCData });
-    setPermanenceData({ ...emptyPermanenceData });
+    setAnswers({});
+    setComments("");
     setSaveError("");
     setSaveStatus("synced");
     setClientSubmissionId(crypto.randomUUID());
@@ -174,24 +155,13 @@ export default function Evaluacion() {
   };
   return (
     <main className="min-h-screen px-2 py-8 sm:px-6 font-primary">
-      <div className="print-button fixed right-3 top-3 z-30 flex items-center gap-1.5 sm:right-5 sm:top-5">
-        <label htmlFor="print-work-type" className="sr-only">Versión para imprimir</label>
-        <select
-          id="print-work-type"
-          value={printWorkType}
-          onChange={(event) => setPrintWorkType(event.target.value as WorkType)}
-          className="h-9 rounded-lg border border-secondary bg-white px-2 text-xs font-bold text-secondary shadow-sm"
-          title="Versión para imprimir"
-        >
-          <option value="campo">Campo</option>
-          <option value="bodega">Bodega</option>
-        </select>
+      <div className="print-button fixed right-3 top-3 z-30 sm:right-5 sm:top-5">
         <button
           type="button"
           onClick={() => window.print()}
           className="flex size-9 items-center justify-center rounded-lg border border-secondary bg-white text-secondary shadow-sm transition hover:bg-tertiary"
-          aria-label={`Imprimir evaluación de ${printWorkType}`}
-          title={`Imprimir evaluación de ${printWorkType}`}
+          aria-label="Imprimir evaluación"
+          title="Imprimir evaluación"
         >
           <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z" />
@@ -215,10 +185,10 @@ export default function Evaluacion() {
           </p>
         )}
         <h1 className="text-center font-secondary text-2xl font-semibold text-deepgreen sm:text-3xl">
-          Evaluación de rendimiento
+          Evaluación mensual
         </h1>
         <p className="mt-1 text-center text-md text-slate-800">
-          Mediados de temporada {new Date().getFullYear()}
+          Empleados con 1–2 temporadas · {new Date().getFullYear()}
         </p>
         {step === "setup" ? (
           <form
@@ -258,52 +228,9 @@ export default function Evaluacion() {
               id="worker-matricula"
               value={selectedWorker?.matricula}
             />
-            <label
-              htmlFor="position-title"
-              className="flex flex-col gap-1 font-primary font-medium"
-            >
-              Puesto
-              <input
-                id="position-title"
-                name="positionTitle"
-                type="text"
-                value={positionTitle}
-                onChange={(event) => setPositionTitle(event.target.value)}
-                maxLength={150}
-                required
-                placeholder="Ej.: Cosechador, empacador…"
-                className="rounded-lg border-2 border-gray-500 bg-tertiary/60 p-2.5 text-sm"
-              />
-            </label>
-            <fieldset>
-              <legend className="font-medium">Tipo de trabajo</legend>
-              <div className="mt-2 flex flex-wrap gap-3">
-                {(["bodega", "campo"] as const).map((type) => (
-                  <label
-                    key={type}
-                    className={`flex min-w-32 cursor-pointer items-center gap-2 rounded-lg border-2 px-4 py-2.5 transition ${workType === type ? "border-primary bg-tertiary text-secondary" : "border-gray-400 bg-white"}`}
-                  >
-                    <input
-                      type="radio"
-                      name="workType"
-                      checked={workType === type}
-                      onChange={() => setWorkType(type)}
-                      required
-                      className="size-4 accent-secondary"
-                    />
-                    <span className="font-bold capitalize">{type}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
             <button
               type="submit"
-              disabled={
-                !selectedEvaluator ||
-                !selectedWorker ||
-                !workType ||
-                !positionTitle.trim()
-              }
+              disabled={!selectedEvaluator || !selectedWorker}
               className="button-primary mt-2 self-end"
             >
               Siguiente
@@ -311,7 +238,7 @@ export default function Evaluacion() {
           </form>
         ) : (
           selectedWorker &&
-          workType && (
+          (
             <section className="mt-6 w-[min(100%,800px)] rounded-xl border border-gray-200 bg-white shadow-sm">
               <header className="sticky top-0 z-10 rounded-t-xl border-b border-primary/30 bg-tertiary px-4 py-3 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wide text-secondary">
@@ -321,32 +248,21 @@ export default function Evaluacion() {
                   {formatWorkerName(selectedWorker)}
                 </h2>
                 <p className="text-sm text-slate-600">
-                  Matrícula {selectedWorker.matricula} ·{" "}
-                  {workType === "bodega" ? "Bodega" : "Campo"} · {positionTitle}
+                  Matrícula {selectedWorker.matricula}
                 </p>
               </header>
               <div className="p-2 sm:p-5">
-                {step === "section-a" ? (
-                  <SectionB
-                    answers={sectionBAnswers}
-                    workType={workType}
-                    onChange={setSectionBAnswers}
+                {step === "evaluation" ? (
+                  <MonthlyEvaluation
+                    answers={answers}
+                    comments={comments}
+                    onAnswersChange={setAnswers}
+                    onCommentsChange={setComments}
                     onBack={() => setStep("setup")}
-                    onNext={() => setStep("section-b")}
+                    onSubmit={saveEvaluation}
+                    saving={saving}
+                    error={saveError}
                   />
-                ) : step === "section-b" ? (
-                  <SectionC
-                    data={sectionCData}
-                    workType={workType}
-                    onChange={setSectionCData}
-                    onBack={() => setStep("section-a")}
-                    onSubmit={() => setStep("section-c")}
-                    saving={false}
-                    error=""
-                    submitLabel="Siguiente"
-                  />
-                ) : step === "section-c" ? (
-                  <SectionPermanencia data={permanenceData} onChange={setPermanenceData} onBack={() => setStep("section-b")} onSubmit={saveEvaluation} saving={saving} error={saveError} />
                 ) : (
                   <div className="mx-auto max-w-xl py-8 text-center">
                     <p className="text-xs font-bold uppercase tracking-widest text-secondary">Evaluación terminada</p>
@@ -356,13 +272,9 @@ export default function Evaluacion() {
                         Se guardó en este dispositivo y se enviará automáticamente cuando vuelva la conexión.
                       </p>
                     )}
-                    <div className="mt-7 space-y-4 text-left">
-                      <section className={`rounded-xl border p-4 ${permanenceData.recommendNextSeason === "yes" ? "border-primary/40 bg-tertiary" : "border-amber-200 bg-amber-50"}`}>
-                        <p className="text-xs font-bold uppercase tracking-wide text-secondary">Recomendación para la próxima temporada</p>
-                        <p className="mt-2 text-2xl font-bold text-deepgreen">{permanenceData.recommendNextSeason === "yes" ? "Sí" : "No"}</p>
-                        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{permanenceData.explanation}</p>
-                      </section>
-                    </div>
+                    <p className="mt-3 text-sm text-slate-600">
+                      Se guardaron las 30 respuestas y los comentarios adicionales.
+                    </p>
                     <button
                       type="button"
                       onClick={startNextEvaluation}
@@ -377,24 +289,28 @@ export default function Evaluacion() {
           )
         )}
       </article>
-      <PrintEvaluation workType={printWorkType} />
+      <PrintEvaluation />
     </main>
   );
 }
 
-function PrintEvaluation({ workType }: { workType: WorkType }) {
+function PrintEvaluation() {
   const doNothing = () => undefined;
 
   return (
     <article className="print-evaluation" aria-hidden="true">
       <section className="print-section">
-        <SectionB answers={{}} workType={workType} onChange={doNothing} onBack={doNothing} onNext={doNothing} />
-      </section>
-      <section className="print-section mt-8">
-        <SectionC data={emptySectionCData} workType={workType} onChange={doNothing} onBack={doNothing} onSubmit={doNothing} saving={false} error="" />
-      </section>
-      <section className="print-section mt-8">
-        <SectionPermanencia data={emptyPermanenceData} onChange={doNothing} onBack={doNothing} onSubmit={doNothing} saving={false} error="" />
+        <MonthlyEvaluation
+          answers={{}}
+          comments=""
+          onAnswersChange={doNothing}
+          onCommentsChange={doNothing}
+          onBack={doNothing}
+          onSubmit={doNothing}
+          saving={false}
+          error=""
+          printable
+        />
       </section>
     </article>
   );
