@@ -49,6 +49,14 @@ export default function Evaluacion() {
   const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved">("idle");
   const syncStatus = useEvaluationSync();
   const offlineShellStatus = useOfflineReadiness();
+  const selectedEvaluator = evaluators.find(
+    (worker) => String(worker.id) === selectedEvaluatorId,
+  );
+  const selectedWorker = workers.find(
+    (worker) => String(worker.id) === selectedWorkerId,
+  );
+  const evaluatorValue = selectedEvaluator ? String(selectedEvaluator.id) : "";
+  const workerValue = selectedWorker ? String(selectedWorker.id) : "";
 
   useEffect(() => {
     if (!user) return;
@@ -72,47 +80,53 @@ export default function Evaluacion() {
   }, [user]);
 
   useEffect(() => {
-    if (!user || !draftLoaded || step === "complete") return;
-    const hasProgress = Boolean(
-      selectedWorkerId || Object.keys(answers).length || comments.trim(),
-    );
-    if (!hasProgress) return;
+    if (
+      !user ||
+      !draftLoaded ||
+      step === "complete" ||
+      !selectedEvaluator ||
+      !selectedWorker
+    ) return;
+
     const timeout = window.setTimeout(() => {
       setDraftStatus("saving");
       const draft: EvaluationDraft = {
         schemaVersion: 3,
         userId: user.id,
         clientSubmissionId,
-        evaluatorId: Number(selectedEvaluatorId || evaluators[0]?.id || 0),
-        evaluatedWorkerId: Number(selectedWorkerId || workers[0]?.id || 0),
+        evaluatorId: selectedEvaluator.id,
+        evaluatedWorkerId: selectedWorker.id,
         evaluationType: "one_to_two_seasons",
         answers,
         comments,
         step,
         updatedAt: new Date().toISOString(),
       };
-      void saveEvaluationDraft(draft).then(() => setDraftStatus("saved"));
+      void saveEvaluationDraft(draft)
+        .then(() => setDraftStatus("saved"))
+        .catch(() => setDraftStatus("idle"));
     }, 300);
     return () => window.clearTimeout(timeout);
   }, [
-    user, draftLoaded, step, selectedEvaluatorId, selectedWorkerId, answers, comments,
-    clientSubmissionId, evaluators, workers,
+    user,
+    draftLoaded,
+    step,
+    selectedEvaluator,
+    selectedWorker,
+    answers,
+    comments,
+    clientSubmissionId,
   ]);
 
   useEffect(() => {
     if (step !== "setup") window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
 
-  const selectedEvaluator =
-    evaluators.find((worker) => String(worker.id) === selectedEvaluatorId);
-  const selectedWorker =
-    workers.find((worker) => String(worker.id) === selectedWorkerId);
-  const evaluatorValue = selectedEvaluator ? String(selectedEvaluator.id) : "";
-  const workerValue = selectedWorker ? String(selectedWorker.id) : "";
   const beginEvaluation = (event: FormEvent) => {
     event.preventDefault();
-    if (selectedEvaluator && selectedWorker)
+    if (selectedEvaluator && selectedWorker) {
       setStep("evaluation");
+    }
   };
   const saveEvaluation = async () => {
     if (!selectedEvaluator || !selectedWorker) return;
@@ -236,9 +250,7 @@ export default function Evaluacion() {
               Siguiente
             </button>
           </form>
-        ) : (
-          selectedWorker &&
-          (
+        ) : selectedWorker ? (
             <section className="mt-6 w-[min(100%,800px)] rounded-xl border border-gray-200 bg-white shadow-sm">
               <header className="sticky top-0 z-10 rounded-t-xl border-b border-primary/30 bg-tertiary px-4 py-3 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wide text-secondary">
@@ -286,8 +298,7 @@ export default function Evaluacion() {
                 )}
               </div>
             </section>
-          )
-        )}
+        ) : null}
       </article>
       <PrintEvaluation />
     </main>
