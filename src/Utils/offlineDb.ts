@@ -1,6 +1,7 @@
 import type {
   CreateVariationAlertPayload,
   MonthlyAnswers,
+  MonthlyEvaluationQuestion,
   VariationAlertAction,
   VariationAlertReason,
   VariationAlertSinceWhen,
@@ -8,8 +9,9 @@ import type {
 } from "../Contexts/evaluationContext";
 
 const DATABASE_NAME = "vegibec-evaluacion";
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 const WORKERS_STORE = "workers";
+const MONTHLY_QUESTIONS_STORE = "monthlyQuestions";
 const OUTBOX_STORE = "evaluationOutbox";
 const DRAFTS_STORE = "evaluationDrafts";
 const VARIATION_ALERT_OUTBOX_STORE = "variationAlertOutbox";
@@ -82,6 +84,9 @@ function openDatabase(): Promise<IDBDatabase> {
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains(WORKERS_STORE)) database.createObjectStore(WORKERS_STORE, { keyPath: "id" });
+      if (!database.objectStoreNames.contains(MONTHLY_QUESTIONS_STORE)) {
+        database.createObjectStore(MONTHLY_QUESTIONS_STORE, { keyPath: "id" });
+      }
       if (!database.objectStoreNames.contains(OUTBOX_STORE)) {
         const outbox = database.createObjectStore(OUTBOX_STORE, { keyPath: "clientSubmissionId" });
         outbox.createIndex("createdAt", "createdAt");
@@ -170,6 +175,44 @@ export async function getCachedWorkers<T>(): Promise<T[]> {
   try {
     const transaction = database.transaction(WORKERS_STORE, "readonly");
     return await requestResult(transaction.objectStore(WORKERS_STORE).getAll()) as T[];
+  } finally {
+    database.close();
+  }
+}
+
+export async function cacheMonthlyQuestions(
+  questions: MonthlyEvaluationQuestion[],
+) {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(
+      MONTHLY_QUESTIONS_STORE,
+      "readwrite",
+    );
+    transaction.objectStore(MONTHLY_QUESTIONS_STORE).put({
+      id: "active",
+      questions,
+      updatedAt: new Date().toISOString(),
+    });
+    await waitForTransaction(transaction);
+  } finally {
+    database.close();
+  }
+}
+
+export async function getCachedMonthlyQuestions(): Promise<
+  MonthlyEvaluationQuestion[]
+> {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(
+      MONTHLY_QUESTIONS_STORE,
+      "readonly",
+    );
+    const cached = await requestResult(
+      transaction.objectStore(MONTHLY_QUESTIONS_STORE).get("active"),
+    ) as { questions?: MonthlyEvaluationQuestion[] } | undefined;
+    return cached?.questions ?? [];
   } finally {
     database.close();
   }

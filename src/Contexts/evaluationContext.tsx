@@ -2,12 +2,18 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
-import type { OfflineVariationAlertPayload } from "../Utils/offlineDb";
+import {
+  cacheMonthlyQuestions,
+  getCachedMonthlyQuestions,
+  type OfflineVariationAlertPayload,
+} from "../Utils/offlineDb";
+import { useAuth } from "./AuthContext";
 import {
   submitVariationAlert,
   type VariationAlertSubmissionResult,
@@ -276,6 +282,7 @@ async function readApiError(response: Response) {
 export function EvaluationProvider({
   children,
 }: EvaluationProviderProps) {
+  const { user, authChecked } = useAuth();
   const [evaluations, setEvaluations] =
     useState<EvaluationSummary[]>([]);
 
@@ -287,6 +294,9 @@ export function EvaluationProvider({
 
   const [error, setError] = useState("");
   const variationAlertSubmissionInFlight = useRef(false);
+  const monthlyQuestionsRequest = useRef<
+    Promise<MonthlyEvaluationQuestion[]> | null
+  >(null);
 
   const [monthlyQuestions, setMonthlyQuestions] =
   useState<MonthlyEvaluationQuestion[]>([]);
@@ -416,52 +426,86 @@ export function EvaluationProvider({
     [],
   );
 
-  const fetchMonthlyQuestions = useCallback(
-  async (): Promise<MonthlyEvaluationQuestion[]> => {
-    try {
+  const fetchMonthlyQuestions = useCallback((): Promise<MonthlyEvaluationQuestion[]> => {
+    if (monthlyQuestionsRequest.current) {
+      return monthlyQuestionsRequest.current;
+    }
+
+    const request = (async () => {
       setLoading(true);
-      setError("");
 
-      const response = await fetch(
-        `${EVALUATION_API}/questions/monthly`,
-        {
-          method: "GET",
-          credentials: "include",
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          await readApiError(response),
-        );
+      const cachedQuestions = await getCachedMonthlyQuestions().catch(() => []);
+      if (cachedQuestions.length > 0) {
+        setMonthlyQuestions(cachedQuestions);
       }
 
-      const data: MonthlyEvaluationQuestion[] =
-        await response.json();
+      if (!navigator.onLine) {
+        if (cachedQuestions.length === 0) {
+          setError(
+            "Conéctese a internet una vez para descargar las preguntas.",
+          );
+        } else {
+          setError("");
+        }
+        setLoading(false);
+        return cachedQuestions;
+      }
 
-      setMonthlyQuestions(data);
+      try {
+        setError("");
+        const response = await fetch(
+          `${EVALUATION_API}/questions/monthly`,
+          {
+            method: "GET",
+            credentials: "include",
+          },
+        );
 
-      return data;
-    } catch (err) {
-      console.error(
-        "Error fetching monthly questions:",
-        err,
-      );
+        if (!response.ok) {
+          throw new Error(await readApiError(response));
+        }
 
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Erreur lors du chargement des questions.";
+        const data: MonthlyEvaluationQuestion[] = await response.json();
+        setMonthlyQuestions(data);
+        await cacheMonthlyQuestions(data).catch((cacheError) => {
+          console.warn("Could not cache monthly questions:", cacheError);
+        });
+        return data;
+      } catch (err) {
+        console.error("Error fetching monthly questions:", err);
 
-      setError(message);
+        if (cachedQuestions.length > 0) {
+          setError("");
+          return cachedQuestions;
+        }
 
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  },
-  [],
-);
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Erreur lors du chargement des questions.";
+        setError(message);
+        return [];
+      } finally {
+        setLoading(false);
+      }
+    })().finally(() => {
+      monthlyQuestionsRequest.current = null;
+    });
+
+    monthlyQuestionsRequest.current = request;
+    return request;
+  }, []);
+
+  useEffect(() => {
+    if (!authChecked || !user) return;
+
+    void fetchMonthlyQuestions();
+    const refreshQuestions = () => {
+      void fetchMonthlyQuestions();
+    };
+    window.addEventListener("online", refreshQuestions);
+    return () => window.removeEventListener("online", refreshQuestions);
+  }, [authChecked, user, fetchMonthlyQuestions]);
 
   const createEvaluation = useCallback(
     async (
