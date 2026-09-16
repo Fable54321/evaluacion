@@ -434,7 +434,7 @@ const submitAlert = async (
               </p>
             )}
             <div className="mt-4 grid gap-5 sm:grid-cols-2">
-              <div className="space-y-3">
+              <div className="min-w-0 space-y-3">
                 <SearchableWorkerSelect
                   id="team-leader"
                   label="Nombre del jefe de equipo"
@@ -447,7 +447,7 @@ const submitAlert = async (
                   value={selectedTeamLeader?.matricula}
                 />
               </div>
-              <div className="space-y-3">
+              <div className="min-w-0 space-y-3">
                 <SearchableWorkerSelect
                   id="employee"
                   label="Nombre del empleado"
@@ -504,7 +504,7 @@ const submitAlert = async (
               <SectionHeading number="3">¿Qué está pasando?</SectionHeading>
             </legend>
             <p className="mt-2 text-sm text-slate-600">Seleccione una opción.</p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 max-w-[100%]">
               {situationOptions.map((option) => (
                 <SingleChoiceOption
                   key={option.value}
@@ -793,7 +793,7 @@ function SearchableWorkerSelect({
   );
 
   return (
-    <div className="relative flex flex-col gap-2 text-sm font-semibold text-slate-800">
+    <div className="relative flex min-w-0 flex-col gap-2 text-sm font-semibold text-slate-800">
       <label htmlFor={id}>{label}</label>
       <input
         id={id}
@@ -812,7 +812,7 @@ function SearchableWorkerSelect({
             ? "Buscar por nombre o matrícula…"
             : "No hay trabajadores disponibles"
         }
-        className="rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-sm font-normal outline-none transition focus:border-secondary focus:ring-2 focus:ring-primary/30"
+        className="w-full min-w-0 rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-sm font-normal outline-none transition focus:border-secondary focus:ring-2 focus:ring-primary/30"
       />
       {editing && (
         <div className="absolute top-full z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
@@ -848,13 +848,13 @@ function SearchableWorkerSelect({
 
 function ReadOnlyMatricula({ id, value }: { id: string; value?: string }) {
   return (
-    <label htmlFor={id} className="flex flex-col gap-2 text-sm font-semibold text-slate-800">
+    <label htmlFor={id} className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-slate-800">
       Matrícula
       <input
         id={id}
         value={value ?? ""}
         readOnly
-        className="rounded-lg border-2 border-slate-300 bg-tertiary/60 px-3 py-2.5 text-sm font-bold text-secondary"
+        className="w-full min-w-0 rounded-lg border-2 border-slate-300 bg-tertiary/60 px-3 py-2.5 text-sm font-bold text-secondary"
       />
     </label>
   );
