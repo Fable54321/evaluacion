@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getQueuedEvaluations, OUTBOX_CHANGE_EVENT } from "../Utils/offlineDb";
+import { getQueuedSubmissionCount, OUTBOX_CHANGE_EVENT } from "../Utils/offlineDb";
 import { syncEvaluationOutbox } from "../Utils/offlineSync";
 
 export function useEvaluationSync() {
@@ -10,7 +10,7 @@ export function useEvaluationSync() {
   const [lastSyncedCount, setLastSyncedCount] = useState(0);
 
   const refreshPendingCount = useCallback(async () => {
-    setPendingCount((await getQueuedEvaluations()).length);
+    setPendingCount(await getQueuedSubmissionCount());
   }, []);
 
   const synchronize = useCallback(async () => {

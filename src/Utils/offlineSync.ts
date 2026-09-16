@@ -1,8 +1,35 @@
 import { fetchWithAuth } from "./fetchWithAuth";
-import { getQueuedEvaluations, queueEvaluation, recordQueueFailure, removeQueuedEvaluation, type OfflineEvaluationPayload } from "./offlineDb";
+import {
+  getQueuedEvaluations,
+  getQueuedSubmissionCount,
+  getQueuedVariationAlerts,
+  queueEvaluation,
+  queueVariationAlert,
+  recordQueueFailure,
+  recordVariationAlertQueueFailure,
+  removeQueuedEvaluation,
+  removeQueuedVariationAlert,
+  type OfflineEvaluationPayload,
+  type OfflineVariationAlertPayload,
+} from "./offlineDb";
 
 export type EvaluationSaveResponse = { evaluationId: string; scores: { total_weighted_score: string }; deduplicated: boolean };
 export type SubmissionResult = { status: "synced"; response: EvaluationSaveResponse } | { status: "queued" };
+export type VariationAlertSaveResponse = {
+  message: string;
+  deduplicated?: boolean;
+  alert: { id: number } & Record<string, unknown>;
+};
+export type VariationAlertSubmissionResult =
+  | { status: "synced"; response: VariationAlertSaveResponse }
+  | { status: "queued" };
+
+let synchronizationPromise: Promise<{
+  synced: number;
+  remaining: number;
+  failed: number;
+  lastError: string | null;
+}> | null = null;
 
 function isNetworkFailure(error: unknown) {
   if (!navigator.onLine) return true;
@@ -25,8 +52,37 @@ export async function submitEvaluation(payload: OfflineEvaluationPayload): Promi
   }
 }
 
-export async function syncEvaluationOutbox() {
-  if (!navigator.onLine) return { synced: 0, remaining: (await getQueuedEvaluations()).length, failed: 0, lastError: null as string | null };
+export async function submitVariationAlert(
+  payload: OfflineVariationAlertPayload,
+): Promise<VariationAlertSubmissionResult> {
+  if (!navigator.onLine) {
+    await queueVariationAlert(payload);
+    return { status: "queued" };
+  }
+
+  try {
+    const response = await fetchWithAuth<VariationAlertSaveResponse>(
+      "/evaluation-new/variation-alerts",
+      { method: "POST", body: payload },
+    );
+    return { status: "synced", response };
+  } catch (error) {
+    if (!isNetworkFailure(error)) throw error;
+    await queueVariationAlert(payload);
+    return { status: "queued" };
+  }
+}
+
+async function synchronizeOutboxes() {
+  if (!navigator.onLine) {
+    return {
+      synced: 0,
+      remaining: await getQueuedSubmissionCount(),
+      failed: 0,
+      lastError: null as string | null,
+    };
+  }
+
   const records = await getQueuedEvaluations();
   let synced = 0;
   let failed = 0;
@@ -43,5 +99,39 @@ export async function syncEvaluationOutbox() {
       if (isNetworkFailure(error)) break;
     }
   }
-  return { synced, remaining: (await getQueuedEvaluations()).length, failed, lastError };
+
+  if (navigator.onLine) {
+    const alertRecords = await getQueuedVariationAlerts();
+    for (const record of alertRecords) {
+      try {
+        await fetchWithAuth<VariationAlertSaveResponse>(
+          "/evaluation-new/variation-alerts",
+          { method: "POST", body: record.payload },
+        );
+        await removeQueuedVariationAlert(record.clientSubmissionId);
+        synced += 1;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : "Synchronization failed";
+        await recordVariationAlertQueueFailure(record, lastError);
+        failed += 1;
+        if (isNetworkFailure(error)) break;
+      }
+    }
+  }
+
+  return {
+    synced,
+    remaining: await getQueuedSubmissionCount(),
+    failed,
+    lastError,
+  };
+}
+
+export function syncEvaluationOutbox() {
+  if (!synchronizationPromise) {
+    synchronizationPromise = synchronizeOutboxes().finally(() => {
+      synchronizationPromise = null;
+    });
+  }
+  return synchronizationPromise;
 }

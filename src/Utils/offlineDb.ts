@@ -1,10 +1,19 @@
-import type { MonthlyAnswers } from "../Contexts/evaluationContext";
+import type {
+  CreateVariationAlertPayload,
+  MonthlyAnswers,
+  VariationAlertAction,
+  VariationAlertReason,
+  VariationAlertSinceWhen,
+  VariationAlertType,
+} from "../Contexts/evaluationContext";
 
 const DATABASE_NAME = "vegibec-evaluacion";
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 const WORKERS_STORE = "workers";
 const OUTBOX_STORE = "evaluationOutbox";
 const DRAFTS_STORE = "evaluationDrafts";
+const VARIATION_ALERT_OUTBOX_STORE = "variationAlertOutbox";
+const VARIATION_ALERT_DRAFTS_STORE = "variationAlertDrafts";
 export const OUTBOX_CHANGE_EVENT = "evaluation-outbox-change";
 
 function notifyOutboxChange() {
@@ -36,6 +45,35 @@ export type EvaluationDraft = OfflineEvaluationPayload & {
   updatedAt: string;
 };
 
+export type OfflineVariationAlertPayload = CreateVariationAlertPayload & {
+  schemaVersion: 1;
+  client_submission_id: string;
+};
+
+export type OutboxVariationAlert = {
+  clientSubmissionId: string;
+  payload: OfflineVariationAlertPayload;
+  createdAt: string;
+  updatedAt: string;
+  attempts: number;
+  lastError: string | null;
+};
+
+export type VariationAlertDraft = {
+  schemaVersion: 1;
+  userId: number;
+  clientSubmissionId: string;
+  selectedTeamLeaderId: string;
+  selectedEmployeeId: string;
+  alertLevel: VariationAlertType | "";
+  situation: VariationAlertReason | "";
+  timeframe: VariationAlertSinceWhen | "";
+  action: VariationAlertAction | "";
+  otherSituation: string;
+  positiveSituation: string;
+  updatedAt: string;
+};
+
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
@@ -50,6 +88,17 @@ function openDatabase(): Promise<IDBDatabase> {
       }
       if (!database.objectStoreNames.contains(DRAFTS_STORE)) {
         database.createObjectStore(DRAFTS_STORE, { keyPath: "userId" });
+      }
+      if (!database.objectStoreNames.contains(VARIATION_ALERT_OUTBOX_STORE)) {
+        const outbox = database.createObjectStore(VARIATION_ALERT_OUTBOX_STORE, {
+          keyPath: "clientSubmissionId",
+        });
+        outbox.createIndex("createdAt", "createdAt");
+      }
+      if (!database.objectStoreNames.contains(VARIATION_ALERT_DRAFTS_STORE)) {
+        database.createObjectStore(VARIATION_ALERT_DRAFTS_STORE, {
+          keyPath: "userId",
+        });
       }
     };
   });
@@ -174,4 +223,118 @@ export async function recordQueueFailure(record: OutboxEvaluation, error: string
   } finally {
     database.close();
   }
+}
+
+export async function saveVariationAlertDraft(draft: VariationAlertDraft) {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(VARIATION_ALERT_DRAFTS_STORE, "readwrite");
+    transaction.objectStore(VARIATION_ALERT_DRAFTS_STORE).put(draft);
+    await waitForTransaction(transaction);
+  } finally {
+    database.close();
+  }
+}
+
+export async function getVariationAlertDraft(
+  userId: number,
+): Promise<VariationAlertDraft | null> {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(VARIATION_ALERT_DRAFTS_STORE, "readonly");
+    const draft = await requestResult(
+      transaction.objectStore(VARIATION_ALERT_DRAFTS_STORE).get(userId),
+    ) as VariationAlertDraft | undefined;
+    return draft?.schemaVersion === 1 ? draft : null;
+  } finally {
+    database.close();
+  }
+}
+
+export async function deleteVariationAlertDraft(userId: number) {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(VARIATION_ALERT_DRAFTS_STORE, "readwrite");
+    transaction.objectStore(VARIATION_ALERT_DRAFTS_STORE).delete(userId);
+    await waitForTransaction(transaction);
+  } finally {
+    database.close();
+  }
+}
+
+export async function queueVariationAlert(payload: OfflineVariationAlertPayload) {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(VARIATION_ALERT_OUTBOX_STORE, "readwrite");
+    const store = transaction.objectStore(VARIATION_ALERT_OUTBOX_STORE);
+    const existing = await requestResult(
+      store.get(payload.client_submission_id),
+    ) as OutboxVariationAlert | undefined;
+    const now = new Date().toISOString();
+    store.put({
+      clientSubmissionId: payload.client_submission_id,
+      payload,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      attempts: existing?.attempts ?? 0,
+      lastError: existing?.lastError ?? null,
+    } satisfies OutboxVariationAlert);
+    await waitForTransaction(transaction);
+    notifyOutboxChange();
+  } finally {
+    database.close();
+  }
+}
+
+export async function getQueuedVariationAlerts(): Promise<OutboxVariationAlert[]> {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(VARIATION_ALERT_OUTBOX_STORE, "readonly");
+    const records = await requestResult(
+      transaction.objectStore(VARIATION_ALERT_OUTBOX_STORE).getAll(),
+    ) as OutboxVariationAlert[];
+    return records.sort((first, second) => first.createdAt.localeCompare(second.createdAt));
+  } finally {
+    database.close();
+  }
+}
+
+export async function removeQueuedVariationAlert(clientSubmissionId: string) {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(VARIATION_ALERT_OUTBOX_STORE, "readwrite");
+    transaction.objectStore(VARIATION_ALERT_OUTBOX_STORE).delete(clientSubmissionId);
+    await waitForTransaction(transaction);
+    notifyOutboxChange();
+  } finally {
+    database.close();
+  }
+}
+
+export async function recordVariationAlertQueueFailure(
+  record: OutboxVariationAlert,
+  error: string,
+) {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(VARIATION_ALERT_OUTBOX_STORE, "readwrite");
+    transaction.objectStore(VARIATION_ALERT_OUTBOX_STORE).put({
+      ...record,
+      attempts: record.attempts + 1,
+      lastError: error,
+      updatedAt: new Date().toISOString(),
+    } satisfies OutboxVariationAlert);
+    await waitForTransaction(transaction);
+    notifyOutboxChange();
+  } finally {
+    database.close();
+  }
+}
+
+export async function getQueuedSubmissionCount() {
+  const [evaluations, variationAlerts] = await Promise.all([
+    getQueuedEvaluations(),
+    getQueuedVariationAlerts(),
+  ]);
+  return evaluations.length + variationAlerts.length;
 }

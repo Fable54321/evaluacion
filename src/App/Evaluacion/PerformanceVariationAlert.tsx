@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   useForeignWorkers,
   type Worker,
@@ -11,8 +11,15 @@ import {
   type VariationAlertSinceWhen,
   type VariationAlertAction,
 } from "../../Contexts/evaluationContext";
-
-
+import { useAuth } from "../../Contexts/AuthContext";
+import {
+  deleteVariationAlertDraft,
+  getVariationAlertDraft,
+  saveVariationAlertDraft,
+  type VariationAlertDraft,
+} from "../../Utils/offlineDb";
+import { useEvaluationSync } from "../../Hooks/useEvaluationSync";
+import { useOfflineReadiness } from "../../Hooks/useOfflineReadiness";
 
 type AlertOption = {
   value: VariationAlertType;
@@ -129,6 +136,7 @@ const actionOptions: Array<{
 ];
 
 export default function PerformanceVariationAlert() {
+  const { user } = useAuth();
   const { foreignWorkers, workersListLoading, error } = useForeignWorkers();
 
   const {
@@ -157,16 +165,19 @@ export default function PerformanceVariationAlert() {
   const [alertLevel, setAlertLevel] =
   useState<VariationAlertType | "">("");
 
-const [situations, setSituations] =
-  useState<VariationAlertReason[]>([]);
+const [situation, setSituation] =
+  useState<VariationAlertReason | "">("");
 
 const [timeframe, setTimeframe] =
   useState<VariationAlertSinceWhen | "">("");
 
-const [actions, setActions] =
-  useState<VariationAlertAction[]>([]);
+const [action, setAction] =
+  useState<VariationAlertAction | "">("");
 
 const [otherSituation, setOtherSituation] =
+  useState("");
+
+const [positiveSituation, setPositiveSituation] =
   useState("");
 
 const [formError, setFormError] =
@@ -174,6 +185,21 @@ const [formError, setFormError] =
 
 const [submitted, setSubmitted] =
   useState(false);
+
+const [clientSubmissionId, setClientSubmissionId] =
+  useState<string>(() => crypto.randomUUID());
+
+const [saveStatus, setSaveStatus] =
+  useState<"synced" | "queued">("synced");
+
+const [draftLoaded, setDraftLoaded] =
+  useState(false);
+
+const [draftStatus, setDraftStatus] =
+  useState<"idle" | "saving" | "saved">("idle");
+
+const syncStatus = useEvaluationSync();
+const offlineShellStatus = useOfflineReadiness();
 
 
   const selectedTeamLeader = teamLeaders.find(
@@ -183,19 +209,87 @@ const [submitted, setSubmitted] =
     (worker) => String(worker.id) === selectedEmployeeId,
   );
 
- const toggleSelection = <T extends string>(
-  value: T,
-  selections: T[],
-  setSelections: (nextSelections: T[]) => void,
-) => {
-  setSelections(
-    selections.includes(value)
-      ? selections.filter(
-          (selection) => selection !== value,
-        )
-      : [...selections, value],
-  );
+useEffect(() => {
+  if (!user) return;
 
+  let cancelled = false;
+  void getVariationAlertDraft(user.id)
+    .then((draft) => {
+      if (cancelled) return;
+      if (draft) {
+        setSelectedTeamLeaderId(draft.selectedTeamLeaderId);
+        setSelectedEmployeeId(draft.selectedEmployeeId);
+        setAlertLevel(draft.alertLevel);
+        setSituation(draft.situation);
+        setTimeframe(draft.timeframe);
+        setAction(draft.action);
+        setOtherSituation(draft.otherSituation);
+        setPositiveSituation(draft.positiveSituation);
+        setClientSubmissionId(draft.clientSubmissionId);
+        setDraftStatus("saved");
+      }
+      setDraftLoaded(true);
+    })
+    .catch(() => {
+      if (!cancelled) setDraftLoaded(true);
+    });
+
+  return () => {
+    cancelled = true;
+  };
+}, [user]);
+
+useEffect(() => {
+  if (!user || !draftLoaded || submitted) return;
+
+  const timeout = window.setTimeout(() => {
+    setDraftStatus("saving");
+    const draft: VariationAlertDraft = {
+      schemaVersion: 1,
+      userId: user.id,
+      clientSubmissionId,
+      selectedTeamLeaderId,
+      selectedEmployeeId,
+      alertLevel,
+      situation,
+      timeframe,
+      action,
+      otherSituation,
+      positiveSituation,
+      updatedAt: new Date().toISOString(),
+    };
+
+    void saveVariationAlertDraft(draft)
+      .then(() => setDraftStatus("saved"))
+      .catch(() => setDraftStatus("idle"));
+  }, 300);
+
+  return () => window.clearTimeout(timeout);
+}, [
+  user,
+  draftLoaded,
+  submitted,
+  clientSubmissionId,
+  selectedTeamLeaderId,
+  selectedEmployeeId,
+  alertLevel,
+  situation,
+  timeframe,
+  action,
+  otherSituation,
+  positiveSituation,
+]);
+
+const selectSituation = (value: VariationAlertReason) => {
+  if (situation === "positive_action" && value !== "positive_action") {
+    setPositiveSituation("");
+  }
+
+  if (situation === "other" && value !== "other") {
+    setOtherSituation("");
+  }
+
+  setSituation(value);
   setFormError("");
   clearError();
 };
@@ -229,7 +323,7 @@ const submitAlert = async (
     return;
   }
 
-  if (situations.length === 0) {
+  if (!situation) {
     setFormError(
       "Seleccione al menos una situación.",
     );
@@ -237,11 +331,21 @@ const submitAlert = async (
   }
 
   if (
-    situations.includes("other") &&
+    situation === "other" &&
     !otherSituation.trim()
   ) {
     setFormError(
       "Describa la otra situación.",
+    );
+    return;
+  }
+
+  if (
+    situation === "positive_action" &&
+    !positiveSituation.trim()
+  ) {
+    setFormError(
+      "Describa la situación positiva.",
     );
     return;
   }
@@ -254,17 +358,22 @@ const submitAlert = async (
   }
 
   const result = await createVariationAlert({
+    schemaVersion: 1,
+    client_submission_id: clientSubmissionId,
     leader_user_id: selectedTeamLeader.id,
     worker_user_id: selectedEmployee.id,
 
     alert_type: alertLevel,
     since_when: timeframe,
 
-    reasons: situations,
-    actions,
+    reasons: [situation],
+    actions: action ? [action] : [],
 
-    other_reason: situations.includes("other")
+    other_reason: situation === "other"
       ? otherSituation.trim()
+      : undefined,
+    comments: situation === "positive_action"
+      ? positiveSituation.trim()
       : undefined,
   });
 
@@ -272,6 +381,12 @@ const submitAlert = async (
     return;
   }
 
+  if (user) {
+    await deleteVariationAlertDraft(user.id).catch(() => undefined);
+  }
+
+  setSaveStatus(result.status);
+  setDraftStatus("idle");
   setSubmitted(true);
 };
 
@@ -289,7 +404,17 @@ const submitAlert = async (
             Formulario breve para reportar cambios en el desempeño o la actitud de un empleado,
             facilitar el seguimiento y ofrecer apoyo oportuno.
           </p>
-         
+          <OfflineStatus
+            shellStatus={offlineShellStatus}
+            syncStatus={syncStatus}
+          />
+          {draftStatus !== "idle" && !submitted && (
+            <p aria-live="polite" className="mt-2 text-xs font-semibold text-slate-600">
+              {draftStatus === "saving"
+                ? "Guardando borrador…"
+                : "Borrador guardado en este dispositivo"}
+            </p>
+          )}
         </header>
 
         <form onSubmit={submitAlert} className="space-y-8 p-5 sm:p-8">
@@ -378,20 +503,39 @@ const submitAlert = async (
             <legend className="w-full">
               <SectionHeading number="3">¿Qué está pasando?</SectionHeading>
             </legend>
-            <p className="mt-2 text-sm text-slate-600">Puede marcar más de una opción.</p>
+            <p className="mt-2 text-sm text-slate-600">Seleccione una opción.</p>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {situationOptions.map((option) => (
-                <CheckboxOption
+                <SingleChoiceOption
                   key={option.value}
                   name="situation"
                   value={option.value}
                   label={option.label}
-                  checked={situations.includes(option.value)}
-                  onChange={() => toggleSelection(option.value, situations, setSituations)}
+                  checked={situation === option.value}
+                  onChange={() => selectSituation(option.value)}
                 />
               ))}
             </div>
-            {situations.includes("other") && (
+            {situation === "positive_action" && (
+              <label htmlFor="positive-situation" className="mt-3 block text-sm font-semibold text-slate-800">
+                Describa la situación positiva
+                <textarea
+                  id="positive-situation"
+                  name="positive-situation"
+                  rows={3}
+                  maxLength={1000}
+                  value={positiveSituation}
+                  onChange={(event) => {
+                    setPositiveSituation(event.target.value);
+                    setFormError("");
+                    clearError();
+                  }}
+                  placeholder="Explique brevemente la mejora o acción positiva observada."
+                  className="mt-2 block w-full resize-y rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-sm font-normal outline-none transition focus:border-secondary focus:ring-2 focus:ring-primary/30"
+                />
+              </label>
+            )}
+            {situation === "other" && (
               <label htmlFor="other-situation" className="mt-3 block text-sm font-semibold text-slate-800">
                 Describa la otra situación
               <textarea
@@ -444,16 +588,20 @@ const submitAlert = async (
             <legend className="w-full">
               <SectionHeading number="5">¿Qué intentaste como jefe?</SectionHeading>
             </legend>
-            <p className="mt-2 text-sm text-slate-600">Marque todas las acciones iniciales que ya realizó.</p>
+            <p className="mt-2 text-sm text-slate-600">Seleccione la acción inicial que realizó.</p>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {actionOptions.map((option) => (
-                <CheckboxOption
+                <SingleChoiceOption
                   key={option.value}
                   name="manager-action"
                   value={option.value}
                   label={option.label}
-                  checked={actions.includes(option.value)}
-                  onChange={() => toggleSelection(option.value, actions, setActions)}
+                  checked={action === option.value}
+                  onChange={() => {
+                    setAction(option.value);
+                    setFormError("");
+                    clearError();
+                  }}
                 />
               ))}
             </div>
@@ -471,24 +619,33 @@ const submitAlert = async (
 {submitted ? (
   <div className="rounded-xl border border-primary/40 bg-tertiary px-5 py-5">
     <p className="font-secondary text-lg font-bold text-deepgreen">
-      Alerta enviada correctamente
+      {saveStatus === "queued"
+        ? "Alerta guardada en este dispositivo"
+        : "Alerta enviada correctamente"}
     </p>
 
     <p className="mt-1 text-sm text-slate-700">
-      La variación de desempeño fue registrada.
+      {saveStatus === "queued"
+        ? "Se enviará automáticamente cuando vuelva la conexión."
+        : "La variación de desempeño fue registrada."}
     </p>
 
     <button
       type="button"
       onClick={() => {
+        if (user) void deleteVariationAlertDraft(user.id);
         setSelectedEmployeeId("");
         setAlertLevel("");
-        setSituations([]);
+        setSituation("");
         setTimeframe("");
-        setActions([]);
+        setAction("");
         setOtherSituation("");
+        setPositiveSituation("");
         setFormError("");
         clearError();
+        setSaveStatus("synced");
+        setDraftStatus("idle");
+        setClientSubmissionId(crypto.randomUUID());
         setSubmitted(false);
       }}
       className="button-primary mt-4"
@@ -512,6 +669,66 @@ const submitAlert = async (
         </form>
       </article>
     </main>
+  );
+}
+
+function OfflineStatus({
+  shellStatus,
+  syncStatus,
+}: {
+  shellStatus: ReturnType<typeof useOfflineReadiness>;
+  syncStatus: ReturnType<typeof useEvaluationSync>;
+}) {
+  const { online, pendingCount, syncing, syncError, synchronize } = syncStatus;
+  const shellReady = shellStatus === "ready";
+  const message = !online
+    ? `Sin conexión${pendingCount ? ` · ${pendingCount} envío${pendingCount === 1 ? "" : "s"} pendiente${pendingCount === 1 ? "" : "s"}` : ""}`
+    : syncing
+      ? "Sincronizando envíos…"
+      : syncError
+        ? `Error de sincronización${pendingCount ? ` · ${pendingCount} pendiente${pendingCount === 1 ? "" : "s"}` : ""}`
+        : pendingCount
+          ? `${pendingCount} envío${pendingCount === 1 ? "" : "s"} pendiente${pendingCount === 1 ? "" : "s"}`
+          : shellReady
+            ? "Lista para trabajar sin conexión"
+            : "Conexión disponible";
+  const appearance = !online
+    ? "border-amber-300 bg-amber-50 text-amber-950"
+    : syncError
+      ? "border-red-200 bg-red-50 text-red-800"
+      : syncing || pendingCount
+        ? "border-blue-200 bg-blue-50 text-blue-900"
+        : "border-primary/50 bg-white text-deepgreen";
+
+  return (
+    <aside
+      aria-live="polite"
+      className={`mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${appearance}`}
+    >
+      <span className="flex items-center gap-2">
+        <span
+          className={`size-2.5 rounded-full ${
+            !online
+              ? "bg-amber-500"
+              : syncError
+                ? "bg-red-500"
+                : syncing || pendingCount
+                  ? "bg-blue-500"
+                  : "bg-primary"
+          }`}
+        />
+        {message}
+      </span>
+      {online && pendingCount > 0 && !syncing && (
+        <button
+          type="button"
+          onClick={() => void synchronize()}
+          className="rounded-md border border-current px-3 py-1 font-bold"
+        >
+          Reintentar
+        </button>
+      )}
+    </aside>
   );
 }
 
@@ -643,7 +860,7 @@ function ReadOnlyMatricula({ id, value }: { id: string; value?: string }) {
   );
 }
 
-function CheckboxOption({
+function SingleChoiceOption({
   name,
   value,
   label,
@@ -665,7 +882,7 @@ function CheckboxOption({
       }`}
     >
       <input
-        type="checkbox"
+        type="radio"
         name={name}
         value={value}
         checked={checked}

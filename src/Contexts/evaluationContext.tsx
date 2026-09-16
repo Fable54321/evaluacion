@@ -3,9 +3,15 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import type { OfflineVariationAlertPayload } from "../Utils/offlineDb";
+import {
+  submitVariationAlert,
+  type VariationAlertSubmissionResult,
+} from "../Utils/offlineSync";
 
 export type Frequency = 1 | 2 | 3 | 4 | 5;
 
@@ -164,31 +170,6 @@ export type CreateVariationAlertPayload = {
   comments?: string;
 };
 
-type CreateVariationAlertResponse = {
-  message: string;
-
-  alert: {
-    id: number;
-
-    leader_user_id: number;
-    worker_user_id: number;
-
-    alert_type: VariationAlertType;
-    since_when: VariationAlertSinceWhen;
-
-    other_reason: string | null;
-    comments: string | null;
-
-    created_by_user_id: number | null;
-
-    created_at: string;
-    updated_at: string;
-
-    reasons: VariationAlertReason[];
-    actions: VariationAlertAction[];
-  };
-};
-
 export type VariationAlertFilters = {
   worker_user_id?: number;
   leader_user_id?: number;
@@ -229,8 +210,8 @@ type EvaluationContextValue = {
   ) => Promise<VariationAlertDetail | null>;
 
   createVariationAlert: (
-    payload: CreateVariationAlertPayload,
-  ) => Promise<VariationAlertDetail | null>;
+    payload: OfflineVariationAlertPayload,
+  ) => Promise<VariationAlertSubmissionResult | null>;
 
   clearError: () => void;
 };
@@ -291,6 +272,7 @@ export function EvaluationProvider({
   const [saving, setSaving] = useState(false);
 
   const [error, setError] = useState("");
+  const variationAlertSubmissionInFlight = useRef(false);
 
   const clearError = useCallback(() => {
     setError("");
@@ -622,60 +604,19 @@ export function EvaluationProvider({
   const createVariationAlert =
     useCallback(
       async (
-        payload: CreateVariationAlertPayload,
-      ): Promise<VariationAlertDetail | null> => {
+        payload: OfflineVariationAlertPayload,
+      ): Promise<VariationAlertSubmissionResult | null> => {
+        if (variationAlertSubmissionInFlight.current) {
+          return null;
+        }
+
+        variationAlertSubmissionInFlight.current = true;
+
         try {
           setSaving(true);
           setError("");
 
-          const response = await fetch(
-            VARIATION_ALERT_API,
-            {
-              method: "POST",
-
-              credentials: "include",
-
-              headers: {
-                "Content-Type": "application/json",
-              },
-
-              body: JSON.stringify(payload),
-            },
-          );
-
-          if (!response.ok) {
-            throw new Error(
-              await readApiError(response),
-            );
-          }
-
-          const data: CreateVariationAlertResponse =
-            await response.json();
-
-          /*
-           * POST doesn't contain the names, so retrieve
-           * the complete alert immediately afterward.
-           */
-          const detailResponse = await fetch(
-            `${VARIATION_ALERT_API}/${data.alert.id}`,
-            {
-              method: "GET",
-              credentials: "include",
-            },
-          );
-
-          if (!detailResponse.ok) {
-            throw new Error(
-              await readApiError(detailResponse),
-            );
-          }
-
-          const createdAlert: VariationAlertDetail =
-            await detailResponse.json();
-
-          await fetchVariationAlerts();
-
-          return createdAlert;
+          return await submitVariationAlert(payload);
         } catch (err) {
           console.error(
             "Error creating variation alert:",
@@ -691,10 +632,11 @@ export function EvaluationProvider({
 
           return null;
         } finally {
+          variationAlertSubmissionInFlight.current = false;
           setSaving(false);
         }
       },
-      [fetchVariationAlerts],
+      [],
     );
 
   /* =======================================================
