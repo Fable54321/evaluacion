@@ -83,6 +83,14 @@ const situationOptions: Array<{
   },
 ];
 
+const positiveSituationValues: VariationAlertReason[] = [
+  "positive_action",
+  "other",
+];
+
+const isPositiveSituation = (value: VariationAlertReason | "") =>
+  value !== "" && positiveSituationValues.includes(value);
+
 const timeframeOptions: Array<{
   value: VariationAlertSinceWhen;
   label: string;
@@ -220,7 +228,11 @@ useEffect(() => {
         setSelectedTeamLeaderId(draft.selectedTeamLeaderId);
         setSelectedEmployeeId(draft.selectedEmployeeId);
         setAlertLevel(draft.alertLevel);
-        setSituation(draft.situation);
+        setSituation(
+          draft.alertLevel === "positive" && !isPositiveSituation(draft.situation)
+            ? ""
+            : draft.situation,
+        );
         setTimeframe(draft.timeframe);
         setAction(draft.action);
         setOtherSituation(draft.otherSituation);
@@ -290,6 +302,19 @@ const selectSituation = (value: VariationAlertReason) => {
   }
 
   setSituation(value);
+  setFormError("");
+  clearError();
+};
+
+const selectAlertLevel = (value: VariationAlertType) => {
+  setAlertLevel(value);
+
+  if (value === "positive" && !isPositiveSituation(situation)) {
+    setSituation("");
+    setOtherSituation("");
+    setPositiveSituation("");
+  }
+
   setFormError("");
   clearError();
 };
@@ -485,7 +510,7 @@ const submitAlert = async (
                       name="alert-level"
                       value={option.value}
                       checked={selected}
-                      onChange={() => setAlertLevel(option.value)}
+                      onChange={() => selectAlertLevel(option.value)}
                       className="sr-only"
                     />
                     <span aria-hidden="true" className="text-xl">{option.symbol}</span>
@@ -505,16 +530,22 @@ const submitAlert = async (
             </legend>
             <p className="mt-2 text-sm text-slate-600">Seleccione una opción.</p>
             <div className="mt-4 grid gap-2 sm:grid-cols-2 max-w-full">
-              {situationOptions.map((option) => (
-                <SingleChoiceOption
-                  key={option.value}
-                  name="situation"
-                  value={option.value}
-                  label={option.label}
-                  checked={situation === option.value}
-                  onChange={() => selectSituation(option.value)}
-                />
-              ))}
+              {situationOptions.map((option) => {
+                const disabled =
+                  alertLevel === "positive" && !isPositiveSituation(option.value);
+
+                return (
+                  <SingleChoiceOption
+                    key={option.value}
+                    name="situation"
+                    value={option.value}
+                    label={option.label}
+                    checked={situation === option.value}
+                    disabled={disabled}
+                    onChange={() => selectSituation(option.value)}
+                  />
+                );
+              })}
             </div>
             {situation === "positive_action" && (
               <label htmlFor="positive-situation" className="mt-3 block text-sm font-semibold text-slate-800">
@@ -865,20 +896,24 @@ function SingleChoiceOption({
   value,
   label,
   checked,
+  disabled = false,
   onChange,
 }: {
   name: string;
   value: string;
   label: string;
   checked: boolean;
+  disabled?: boolean;
   onChange: () => void;
 }) {
   return (
     <label
-      className={`flex cursor-pointer items-start gap-3 rounded-lg border-2 px-4 py-3 text-sm transition ${
-        checked
-          ? "border-primary bg-tertiary font-semibold text-deepgreen"
-          : "border-slate-200 text-slate-800 hover:border-slate-400"
+      className={`flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-sm transition ${
+        disabled
+          ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-70"
+          : checked
+          ? "cursor-pointer border-primary bg-tertiary font-semibold text-deepgreen"
+          : "cursor-pointer border-slate-200 text-slate-800 hover:border-slate-400"
       }`}
     >
       <input
@@ -886,8 +921,9 @@ function SingleChoiceOption({
         name={name}
         value={value}
         checked={checked}
+        disabled={disabled}
         onChange={onChange}
-        className="mt-0.5 size-4 shrink-0 accent-secondary"
+        className="mt-0.5 size-4 shrink-0 accent-secondary disabled:cursor-not-allowed"
       />
       {label}
     </label>
