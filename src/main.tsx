@@ -5,6 +5,10 @@ import App from "./App/App.tsx";
 import { AuthProvider } from "./Contexts/AuthContext.tsx";
 import { ForeignWorkersProvider } from "./Contexts/ForeignWorkersContext.tsx";
 import { EvaluationProvider } from "./Contexts/evaluationContext.tsx";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import Home from "./App/100--Home/Home.tsx";
+import Evaluacion from "./App/Evaluacion/Evaluacion.tsx";
+import PerformanceVariationAlert from "./App/Evaluacion/PerformanceVariationAlert.tsx";
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -12,13 +16,35 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
   });
 }
 
+
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <App />,
+    children: [
+      {
+        index: true,
+        element: <Home />
+      },
+      {
+        path: "evaluaciones-mensuales",
+        element: <Evaluacion />
+      },
+      {
+        path: "variacion-de-desempeño ",
+        element: <PerformanceVariationAlert />
+      }
+    ]
+  },
+]);
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <AuthProvider>
       
       <ForeignWorkersProvider>
         <EvaluationProvider>
-        <App />
+        <RouterProvider router={router} />
         </EvaluationProvider>
       </ForeignWorkersProvider>
     </AuthProvider>

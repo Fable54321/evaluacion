@@ -1,9 +1,10 @@
 
 
+import { Outlet } from "react-router-dom";
 import "../index.css";
-import Evaluacion from "./Evaluacion/Evaluacion";
+
 import ProtectedRoute from "./ProtectedRoute";
 
 export default function App() {
-  return <ProtectedRoute><Evaluacion /></ProtectedRoute>;
+  return <ProtectedRoute><Outlet /></ProtectedRoute>;
 }
