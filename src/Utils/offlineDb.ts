@@ -1,4 +1,4 @@
-import type { MonthlyAnswers } from "../App/Evaluacion/MonthlyEvaluation";
+import type { MonthlyAnswers } from "../Contexts/evaluationContext";
 
 const DATABASE_NAME = "vegibec-evaluacion";
 const DATABASE_VERSION = 2;

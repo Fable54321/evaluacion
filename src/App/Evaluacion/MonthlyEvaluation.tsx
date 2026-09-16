@@ -1,7 +1,9 @@
-import { useState } from "react";
 
-export type Frequency = 1 | 2 | 3 | 4 | 5;
-export type MonthlyAnswers = Record<string, Frequency>;
+import { useState } from "react";
+import {
+ 
+  type MonthlyAnswers,
+} from "../../Contexts/evaluationContext";
 
 type Question = {
   id: string;
@@ -17,13 +19,13 @@ type QuestionGroup = {
   questions: Question[];
 };
 
-const frequencyOptions: Array<{ value: Frequency; label: string }> = [
+const frequencyOptions = [
   { value: 1, label: "Nunca" },
   { value: 2, label: "Rara vez" },
   { value: 3, label: "A veces" },
   { value: 4, label: "Casi siempre" },
   { value: 5, label: "Siempre" },
-];
+] as const;
 
 const questionTexts = [
   "Se alinea con reglas y procesos.",
@@ -101,6 +103,7 @@ type Props = {
   onAnswersChange: (answers: MonthlyAnswers) => void;
   onCommentsChange: (comments: string) => void;
   onBack: () => void;
+  clearError: () => void;
   onSubmit: () => void | Promise<void>;
   saving: boolean;
   error: string;
@@ -113,6 +116,7 @@ export default function MonthlyEvaluation({
   onAnswersChange,
   onCommentsChange,
   onBack,
+  clearError,
   onSubmit,
   saving,
   error,
@@ -121,26 +125,40 @@ export default function MonthlyEvaluation({
   const [warning, setWarning] = useState("");
   const [firstMissingQuestionId, setFirstMissingQuestionId] = useState("");
 
-  const submit = () => {
-    const firstMissingQuestion = monthlyQuestions.find(
-      (question) => !answers[question.id],
+ 
+
+const submit = () => {
+  const firstMissingQuestion = monthlyQuestions.find(
+    (question) => !answers[question.id],
+  );
+
+  if (firstMissingQuestion) {
+    setWarning(
+      "Debe responder las 30 preguntas antes de finalizar.",
     );
-    if (firstMissingQuestion) {
-      setWarning("Debe responder las 30 preguntas antes de finalizar.");
-      setFirstMissingQuestionId(firstMissingQuestion.id);
-      requestAnimationFrame(() => {
-        const fieldset = document.getElementById(
-          `monthly-${firstMissingQuestion.id}`,
-        );
-        fieldset?.scrollIntoView({ behavior: "smooth", block: "start" });
-        fieldset
-          ?.querySelector<HTMLInputElement>('input[type="radio"]')
-          ?.focus({ preventScroll: true });
+
+    setFirstMissingQuestionId(firstMissingQuestion.id);
+
+    requestAnimationFrame(() => {
+      const fieldset = document.getElementById(
+        `monthly-${firstMissingQuestion.id}`,
+      );
+
+      fieldset?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
       });
-      return;
-    }
-    void onSubmit();
-  };
+
+      fieldset
+        ?.querySelector<HTMLInputElement>('input[type="radio"]')
+        ?.focus({ preventScroll: true });
+    });
+
+    return;
+  }
+
+  void onSubmit();
+};
 
   return (
     <div>
@@ -148,18 +166,23 @@ export default function MonthlyEvaluation({
         <p className="text-xs font-bold uppercase tracking-widest text-secondary">
           Evaluación mensual
         </p>
+
         <h3 className="mt-1 font-secondary text-xl font-bold text-deepgreen">
           Empleados con 1–2 temporadas
         </h3>
+
         <p className="mt-3 text-sm leading-6 text-slate-700">
-          Esta evaluación permite medir el desempeño de los empleados con 1–2
-          temporadas en la empresa. El objetivo es identificar fortalezas, áreas
-          de mejora y la continuidad del empleado dentro del equipo.
+          Esta evaluación permite medir el desempeño de los empleados con
+          1–2 temporadas en la empresa. El objetivo es identificar
+          fortalezas, áreas de mejora y la continuidad del empleado dentro
+          del equipo.
         </p>
+
         <div className="mt-4 rounded-lg bg-slate-50 p-3">
           <p className="text-sm font-semibold text-slate-800">
             Indique la frecuencia con la que observa cada conducta.
           </p>
+
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-700">
             {frequencyOptions.map((option) => (
               <span key={option.value}>
@@ -174,8 +197,12 @@ export default function MonthlyEvaluation({
         <h3 className="font-secondary text-xl font-bold text-deepgreen">
           Conductas positivas
         </h3>
+
         {questionGroups.map((group) => (
-          <section key={group.id} aria-labelledby={`group-${group.id}`}>
+          <section
+            key={group.id}
+            aria-labelledby={`group-${group.id}`}
+          >
             <div
               className={`mb-3 rounded-lg border-l-4 p-3 ${
                 group.negative
@@ -189,6 +216,7 @@ export default function MonthlyEvaluation({
               >
                 {group.title}
               </h4>
+
               {group.description && (
                 <p className="mt-1 text-xs leading-5 text-slate-700">
                   {group.description}
@@ -201,20 +229,27 @@ export default function MonthlyEvaluation({
                 <fieldset
                   key={question.id}
                   id={`monthly-${question.id}`}
-                  aria-invalid={firstMissingQuestionId === question.id}
+                  aria-invalid={
+                    firstMissingQuestionId === question.id
+                  }
                   className={`scroll-mt-28 rounded-xl border p-4 ${
                     firstMissingQuestionId === question.id
                       ? "border-red-400 bg-red-50 ring-2 ring-red-200"
                       : "border-slate-200"
                   }`}
                 >
-                  <legend className="sr-only">Pregunta {question.number}</legend>
+                  <legend className="sr-only">
+                    Pregunta {question.number}
+                  </legend>
+
                   <p className="text-sm font-medium leading-6 text-slate-800">
                     <span className="mr-1 font-bold text-secondary">
                       {question.number}.
                     </span>
+
                     {question.text}
                   </p>
+
                   <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
                     {frequencyOptions.map((option) => (
                       <label
@@ -229,19 +264,25 @@ export default function MonthlyEvaluation({
                           type="radio"
                           name={`monthly-${question.id}`}
                           value={option.value}
-                          checked={answers[question.id] === option.value}
+                          checked={
+                            answers[question.id] === option.value
+                          }
                           onChange={() => {
                             onAnswersChange({
                               ...answers,
                               [question.id]: option.value,
                             });
+
                             setWarning("");
                             setFirstMissingQuestionId("");
+                            clearError();
                           }}
                           className="size-4 accent-secondary"
                         />
+
                         <span>
                           <strong>{option.value}</strong>
+
                           <span className="block text-[0.65rem] font-medium leading-tight text-slate-600">
                             {option.label}
                           </span>
@@ -258,11 +299,15 @@ export default function MonthlyEvaluation({
 
       <label className="mt-8 block font-secondary text-lg font-bold text-deepgreen">
         Comentarios adicionales
+
         <textarea
           name="comments"
           rows={6}
           value={comments}
-          onChange={(event) => onCommentsChange(event.target.value)}
+          onChange={(event) => {
+            onCommentsChange(event.target.value);
+            clearError();
+          }}
           maxLength={3000}
           placeholder="Añada fortalezas, áreas de mejora u otras observaciones pertinentes."
           className="mt-2 block w-full resize-y rounded-lg border-2 border-gray-300 bg-white px-3 py-2.5 font-primary text-sm font-normal text-gray-900 outline-none transition focus:border-secondary focus:ring-2 focus:ring-primary/30"
@@ -277,6 +322,7 @@ export default function MonthlyEvaluation({
           {warning}
         </p>
       )}
+
       {error && (
         <p
           role="alert"
@@ -296,16 +342,20 @@ export default function MonthlyEvaluation({
           >
             Anterior
           </button>
+
           <button
             type="button"
-            onClick={submit}
+            onClick={() => void submit()}
             disabled={saving}
             className="button-primary"
           >
-            {saving ? "Guardando…" : "Finalizar evaluación"}
+            {saving
+              ? "Guardando…"
+              : "Finalizar evaluación"}
           </button>
         </div>
       )}
     </div>
   );
 }
+

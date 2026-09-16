@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useForeignWorkers } from "../../Contexts/ForeignWorkersContext";
-import MonthlyEvaluation, {
+import { useEvaluation } from "../../Contexts/evaluationContext";
+import  {
   type MonthlyAnswers,
-} from "./MonthlyEvaluation";
-import { submitEvaluation } from "../../Utils/offlineSync";
+} from "../../Contexts/evaluationContext";
+import MonthlyEvaluation from "./MonthlyEvaluation";
 import {
   deleteEvaluationDraft,
   getEvaluationDraft,
   saveEvaluationDraft,
   type EvaluationDraft,
-  type OfflineEvaluationPayload,
 } from "../../Utils/offlineDb";
 import { useEvaluationSync } from "../../Hooks/useEvaluationSync";
 import { useOfflineReadiness } from "../../Hooks/useOfflineReadiness";
@@ -20,6 +20,12 @@ type Step = "setup" | "evaluation" | "complete";
 export default function Evaluacion() {
   const { user } = useAuth();
   const { foreignWorkers, workersListLoading, error } = useForeignWorkers();
+  const {
+  createEvaluation,
+  saving,
+  error: evaluationError,
+  clearError,
+} = useEvaluation();
   const evaluators = useMemo(
     () =>
       foreignWorkers.filter(
@@ -39,8 +45,7 @@ export default function Evaluacion() {
   const [step, setStep] = useState<Step>("setup");
   const [answers, setAnswers] = useState<MonthlyAnswers>({});
   const [comments, setComments] = useState("");
-  const [saveError, setSaveError] = useState("");
-  const [saving, setSaving] = useState(false);
+
   const [clientSubmissionId, setClientSubmissionId] = useState<string>(() =>
     crypto.randomUUID(),
   );
@@ -129,40 +134,35 @@ export default function Evaluacion() {
     }
   };
   const saveEvaluation = async () => {
-    if (!selectedEvaluator || !selectedWorker) return;
-    try {
-      setSaving(true);
-      setSaveError("");
-      const payload: OfflineEvaluationPayload = {
-        schemaVersion: 3,
-        clientSubmissionId,
-        evaluatorId: selectedEvaluator.id,
-        evaluatedWorkerId: selectedWorker.id,
-        evaluationType: "one_to_two_seasons",
-        answers,
-        comments: comments.trim(),
-      };
-      const result = await submitEvaluation(payload);
-      if (user) await deleteEvaluationDraft(user.id).catch(() => undefined);
-      setSaveStatus(result.status);
-      setDraftStatus("idle");
-      setStep("complete");
-    } catch (error) {
-      setSaveError(
-        error instanceof Error
-          ? error.message
-          : "No se pudo guardar la evaluación.",
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
+  if (!selectedEvaluator || !selectedWorker) return;
+
+  clearError();
+
+  const evaluation = await createEvaluation({
+    worker_user_id: selectedWorker.id,
+    evaluator_user_id: selectedEvaluator.id,
+    answers,
+    comments: comments.trim(),
+  });
+
+  if (!evaluation) {
+    return;
+  }
+
+  if (user) {
+    await deleteEvaluationDraft(user.id).catch(() => undefined);
+  }
+
+  setSaveStatus("synced");
+  setDraftStatus("idle");
+  setStep("complete");
+};
   const startNextEvaluation = () => {
     if (user) void deleteEvaluationDraft(user.id);
     setSelectedWorkerId("");
     setAnswers({});
     setComments("");
-    setSaveError("");
+    clearError();
     setSaveStatus("synced");
     setClientSubmissionId(crypto.randomUUID());
     setStep("setup");
@@ -270,10 +270,11 @@ export default function Evaluacion() {
                     comments={comments}
                     onAnswersChange={setAnswers}
                     onCommentsChange={setComments}
+                    clearError={clearError}
                     onBack={() => setStep("setup")}
                     onSubmit={saveEvaluation}
                     saving={saving}
-                    error={saveError}
+                    error={evaluationError}
                   />
                 ) : (
                   <div className="mx-auto max-w-xl py-8 text-center">
@@ -319,6 +320,7 @@ function PrintEvaluation() {
           onBack={doNothing}
           onSubmit={doNothing}
           saving={false}
+          clearError={doNothing}
           error=""
           printable
         />
