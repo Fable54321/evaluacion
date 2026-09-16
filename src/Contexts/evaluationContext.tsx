@@ -1,8 +1,6 @@
-
 import {
   createContext,
   useCallback,
-
   useContext,
   useMemo,
   useState,
@@ -12,6 +10,10 @@ import {
 export type Frequency = 1 | 2 | 3 | 4 | 5;
 
 export type MonthlyAnswers = Record<string, Frequency>;
+
+/* =========================================================
+   MONTHLY EVALUATIONS
+========================================================= */
 
 export type EvaluationSummary = {
   id: number;
@@ -60,8 +62,11 @@ export type EvaluationDetail = {
 export type CreateEvaluationPayload = {
   worker_user_id: number;
   evaluator_user_id: number;
+
   evaluation_date?: string;
+
   comments?: string;
+
   answers: MonthlyAnswers;
 };
 
@@ -70,19 +75,133 @@ type CreateEvaluationResponse = {
 
   evaluation: {
     id: number;
+
     worker_user_id: number;
     evaluator_user_id: number;
+
     evaluation_date: string;
+
     comments: string | null;
+
     status: "draft" | "completed";
+
     completed_at: string | null;
     created_at: string;
     updated_at: string;
   };
 };
 
+/* =========================================================
+   PERFORMANCE VARIATION ALERTS
+========================================================= */
+
+export type VariationAlertType =
+  | "red"
+  | "yellow"
+  | "positive";
+
+export type VariationAlertReason =
+  | "low_performance_or_distracted"
+  | "lost_motivation_or_low_attitude"
+  | "problems_with_coworkers"
+  | "isolates_or_frequent_complaints"
+  | "positive_action"
+  | "other";
+
+export type VariationAlertSinceWhen =
+  | "today"
+  | "few_days"
+  | "this_week"
+  | "since_arrival"
+  | "observation_unclear";
+
+export type VariationAlertAction =
+  | "direct_conversation"
+  | "field_observation_and_notes"
+  | "repeated_suggestions"
+  | "clear_task_reminders"
+  | "active_follow_up";
+
+export type VariationAlertSummary = {
+  id: number;
+
+  leader_user_id: number;
+  worker_user_id: number;
+
+  alert_type: VariationAlertType;
+  since_when: VariationAlertSinceWhen;
+
+  other_reason: string | null;
+  comments: string | null;
+
+  created_by_user_id: number | null;
+
+  created_at: string;
+  updated_at: string;
+
+  leader_name: string;
+  worker_name: string;
+
+  reasons: VariationAlertReason[];
+  actions: VariationAlertAction[];
+};
+
+export type VariationAlertDetail = VariationAlertSummary & {
+  created_by_name: string;
+};
+
+export type CreateVariationAlertPayload = {
+  leader_user_id: number;
+  worker_user_id: number;
+
+  alert_type: VariationAlertType;
+  since_when: VariationAlertSinceWhen;
+
+  reasons: VariationAlertReason[];
+  actions: VariationAlertAction[];
+
+  other_reason?: string;
+  comments?: string;
+};
+
+type CreateVariationAlertResponse = {
+  message: string;
+
+  alert: {
+    id: number;
+
+    leader_user_id: number;
+    worker_user_id: number;
+
+    alert_type: VariationAlertType;
+    since_when: VariationAlertSinceWhen;
+
+    other_reason: string | null;
+    comments: string | null;
+
+    created_by_user_id: number | null;
+
+    created_at: string;
+    updated_at: string;
+
+    reasons: VariationAlertReason[];
+    actions: VariationAlertAction[];
+  };
+};
+
+export type VariationAlertFilters = {
+  worker_user_id?: number;
+  leader_user_id?: number;
+  alert_type?: VariationAlertType;
+};
+
+/* =========================================================
+   CONTEXT
+========================================================= */
+
 type EvaluationContextValue = {
   evaluations: EvaluationSummary[];
+  variationAlerts: VariationAlertSummary[];
 
   loading: boolean;
   saving: boolean;
@@ -101,26 +220,40 @@ type EvaluationContextValue = {
     payload: CreateEvaluationPayload,
   ) => Promise<EvaluationDetail | null>;
 
+  fetchVariationAlerts: (
+    filters?: VariationAlertFilters,
+  ) => Promise<VariationAlertSummary[]>;
+
+  fetchVariationAlertById: (
+    alertId: number,
+  ) => Promise<VariationAlertDetail | null>;
+
+  createVariationAlert: (
+    payload: CreateVariationAlertPayload,
+  ) => Promise<VariationAlertDetail | null>;
+
   clearError: () => void;
 };
 
-const EvaluationContext = createContext<EvaluationContextValue | undefined>(
-  undefined,
-);
+const EvaluationContext =
+  createContext<EvaluationContextValue | undefined>(
+    undefined,
+  );
 
-/*
- * Adjust this if your frontend uses a different backend URL setup.
- *
- * Example:
- * VITE_API_URL=https://your-backend.onrender.com
- */
 const API_URL = import.meta.env.VITE_API_URL || "";
 
 const EVALUATION_API = `${API_URL}/evaluation-new`;
 
+const VARIATION_ALERT_API =
+  `${EVALUATION_API}/variation-alerts`;
+
 type EvaluationProviderProps = {
   children: ReactNode;
 };
+
+/* =========================================================
+   API ERROR HELPER
+========================================================= */
 
 async function readApiError(response: Response) {
   try {
@@ -135,16 +268,24 @@ async function readApiError(response: Response) {
       return data.error;
     }
   } catch {
-    // Ignore JSON parsing failure and use fallback below.
+    // Ignore invalid/non-JSON response.
   }
 
   return `Erreur API (${response.status})`;
 }
 
+/* =========================================================
+   PROVIDER
+========================================================= */
+
 export function EvaluationProvider({
   children,
 }: EvaluationProviderProps) {
-  const [evaluations, setEvaluations] = useState<EvaluationSummary[]>([]);
+  const [evaluations, setEvaluations] =
+    useState<EvaluationSummary[]>([]);
+
+  const [variationAlerts, setVariationAlerts] =
+    useState<VariationAlertSummary[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -154,6 +295,10 @@ export function EvaluationProvider({
   const clearError = useCallback(() => {
     setError("");
   }, []);
+
+  /* =======================================================
+     MONTHLY EVALUATIONS
+  ======================================================= */
 
   const fetchEvaluations = useCallback(
     async (filters?: {
@@ -183,7 +328,9 @@ export function EvaluationProvider({
         const queryString = searchParams.toString();
 
         const response = await fetch(
-          `${EVALUATION_API}${queryString ? `?${queryString}` : ""}`,
+          `${EVALUATION_API}${
+            queryString ? `?${queryString}` : ""
+          }`,
           {
             method: "GET",
             credentials: "include",
@@ -191,16 +338,22 @@ export function EvaluationProvider({
         );
 
         if (!response.ok) {
-          throw new Error(await readApiError(response));
+          throw new Error(
+            await readApiError(response),
+          );
         }
 
-        const data: EvaluationSummary[] = await response.json();
+        const data: EvaluationSummary[] =
+          await response.json();
 
         setEvaluations(data);
 
         return data;
       } catch (err) {
-        console.error("Error fetching evaluations:", err);
+        console.error(
+          "Error fetching evaluations:",
+          err,
+        );
 
         const message =
           err instanceof Error
@@ -234,10 +387,13 @@ export function EvaluationProvider({
         );
 
         if (!response.ok) {
-          throw new Error(await readApiError(response));
+          throw new Error(
+            await readApiError(response),
+          );
         }
 
-        const data: EvaluationDetail = await response.json();
+        const data: EvaluationDetail =
+          await response.json();
 
         return data;
       } catch (err) {
@@ -269,32 +425,30 @@ export function EvaluationProvider({
         setSaving(true);
         setError("");
 
-        const response = await fetch(EVALUATION_API, {
-          method: "POST",
+        const response = await fetch(
+          EVALUATION_API,
+          {
+            method: "POST",
 
-          credentials: "include",
+            credentials: "include",
 
-          headers: {
-            "Content-Type": "application/json",
+            headers: {
+              "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify(payload),
           },
-
-          body: JSON.stringify(payload),
-        });
+        );
 
         if (!response.ok) {
-          throw new Error(await readApiError(response));
+          throw new Error(
+            await readApiError(response),
+          );
         }
 
         const data: CreateEvaluationResponse =
           await response.json();
 
-        /*
-         * The POST route currently returns only the evaluation header,
-         * not the answer object.
-         *
-         * Fetch the freshly created complete evaluation so the caller
-         * immediately receives exactly the same structure as GET /:id.
-         */
         const detailResponse = await fetch(
           `${EVALUATION_API}/${data.evaluation.id}`,
           {
@@ -304,23 +458,22 @@ export function EvaluationProvider({
         );
 
         if (!detailResponse.ok) {
-          throw new Error(await readApiError(detailResponse));
+          throw new Error(
+            await readApiError(detailResponse),
+          );
         }
 
         const createdEvaluation: EvaluationDetail =
           await detailResponse.json();
 
-        /*
-         * Add the newly created evaluation to the local summary list.
-         *
-         * Since the POST response does not include worker_name and
-         * evaluator_name, the safest approach is to refresh the list.
-         */
         await fetchEvaluations();
 
         return createdEvaluation;
       } catch (err) {
-        console.error("Error creating evaluation:", err);
+        console.error(
+          "Error creating evaluation:",
+          err,
+        );
 
         const message =
           err instanceof Error
@@ -337,9 +490,221 @@ export function EvaluationProvider({
     [fetchEvaluations],
   );
 
+  /* =======================================================
+     VARIATION ALERTS
+  ======================================================= */
+
+  const fetchVariationAlerts = useCallback(
+    async (
+      filters?: VariationAlertFilters,
+    ): Promise<VariationAlertSummary[]> => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const searchParams = new URLSearchParams();
+
+        if (filters?.worker_user_id !== undefined) {
+          searchParams.set(
+            "worker_user_id",
+            String(filters.worker_user_id),
+          );
+        }
+
+        if (filters?.leader_user_id !== undefined) {
+          searchParams.set(
+            "leader_user_id",
+            String(filters.leader_user_id),
+          );
+        }
+
+        if (filters?.alert_type !== undefined) {
+          searchParams.set(
+            "alert_type",
+            filters.alert_type,
+          );
+        }
+
+        const queryString =
+          searchParams.toString();
+
+        const response = await fetch(
+          `${VARIATION_ALERT_API}${
+            queryString ? `?${queryString}` : ""
+          }`,
+          {
+            method: "GET",
+            credentials: "include",
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            await readApiError(response),
+          );
+        }
+
+        const data: VariationAlertSummary[] =
+          await response.json();
+
+        setVariationAlerts(data);
+
+        return data;
+      } catch (err) {
+        console.error(
+          "Error fetching variation alerts:",
+          err,
+        );
+
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Erreur lors du chargement des alertes.";
+
+        setError(message);
+
+        return [];
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  const fetchVariationAlertById =
+    useCallback(
+      async (
+        alertId: number,
+      ): Promise<VariationAlertDetail | null> => {
+        try {
+          setLoading(true);
+          setError("");
+
+          const response = await fetch(
+            `${VARIATION_ALERT_API}/${alertId}`,
+            {
+              method: "GET",
+              credentials: "include",
+            },
+          );
+
+          if (!response.ok) {
+            throw new Error(
+              await readApiError(response),
+            );
+          }
+
+          const data: VariationAlertDetail =
+            await response.json();
+
+          return data;
+        } catch (err) {
+          console.error(
+            `Error fetching variation alert ${alertId}:`,
+            err,
+          );
+
+          const message =
+            err instanceof Error
+              ? err.message
+              : "Erreur lors du chargement de l'alerte.";
+
+          setError(message);
+
+          return null;
+        } finally {
+          setLoading(false);
+        }
+      },
+      [],
+    );
+
+  const createVariationAlert =
+    useCallback(
+      async (
+        payload: CreateVariationAlertPayload,
+      ): Promise<VariationAlertDetail | null> => {
+        try {
+          setSaving(true);
+          setError("");
+
+          const response = await fetch(
+            VARIATION_ALERT_API,
+            {
+              method: "POST",
+
+              credentials: "include",
+
+              headers: {
+                "Content-Type": "application/json",
+              },
+
+              body: JSON.stringify(payload),
+            },
+          );
+
+          if (!response.ok) {
+            throw new Error(
+              await readApiError(response),
+            );
+          }
+
+          const data: CreateVariationAlertResponse =
+            await response.json();
+
+          /*
+           * POST doesn't contain the names, so retrieve
+           * the complete alert immediately afterward.
+           */
+          const detailResponse = await fetch(
+            `${VARIATION_ALERT_API}/${data.alert.id}`,
+            {
+              method: "GET",
+              credentials: "include",
+            },
+          );
+
+          if (!detailResponse.ok) {
+            throw new Error(
+              await readApiError(detailResponse),
+            );
+          }
+
+          const createdAlert: VariationAlertDetail =
+            await detailResponse.json();
+
+          await fetchVariationAlerts();
+
+          return createdAlert;
+        } catch (err) {
+          console.error(
+            "Error creating variation alert:",
+            err,
+          );
+
+          const message =
+            err instanceof Error
+              ? err.message
+              : "Erreur lors de l'enregistrement de l'alerte.";
+
+          setError(message);
+
+          return null;
+        } finally {
+          setSaving(false);
+        }
+      },
+      [fetchVariationAlerts],
+    );
+
+  /* =======================================================
+     CONTEXT VALUE
+  ======================================================= */
+
   const value = useMemo<EvaluationContextValue>(
     () => ({
       evaluations,
+      variationAlerts,
 
       loading,
       saving,
@@ -348,17 +713,29 @@ export function EvaluationProvider({
       fetchEvaluations,
       fetchEvaluationById,
       createEvaluation,
+
+      fetchVariationAlerts,
+      fetchVariationAlertById,
+      createVariationAlert,
 
       clearError,
     }),
     [
       evaluations,
+      variationAlerts,
+
       loading,
       saving,
       error,
+
       fetchEvaluations,
       fetchEvaluationById,
       createEvaluation,
+
+      fetchVariationAlerts,
+      fetchVariationAlertById,
+      createVariationAlert,
+
       clearError,
     ],
   );

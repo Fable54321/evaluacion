@@ -1,14 +1,21 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import {
   useForeignWorkers,
   type Worker,
 } from "../../Contexts/ForeignWorkersContext";
 
-type AlertLevel = "red" | "yellow" | "green";
-type Timeframe = "today" | "few_days" | "this_week" | "since_arrival" | "unsure";
+import {
+  useEvaluation,
+  type VariationAlertType,
+  type VariationAlertReason,
+  type VariationAlertSinceWhen,
+  type VariationAlertAction,
+} from "../../Contexts/evaluationContext";
+
+
 
 type AlertOption = {
-  value: AlertLevel;
+  value: VariationAlertType;
   symbol: string;
   label: string;
   description: string;
@@ -31,7 +38,7 @@ const alertOptions: AlertOption[] = [
     selectedClassName: "border-amber-500 bg-amber-50 ring-amber-100",
   },
   {
-    value: "green",
+    value: "positive",
     symbol: "🟢",
     label: "Variación positiva",
     description: "Se observa una mejora o una acción positiva destacada en su desempeño.",
@@ -39,33 +46,98 @@ const alertOptions: AlertOption[] = [
   },
 ];
 
-const situationOptions = [
-  { value: "lower_performance", label: "Bajó su rendimiento o está distraído" },
-  { value: "low_motivation", label: "Perdió motivación o muestra una actitud apagada" },
-  { value: "coworker_issues", label: "Tiene problemas con compañeros" },
-  { value: "isolation_or_complaints", label: "Se aísla o presenta quejas frecuentes" },
-  { value: "positive_action", label: "Realizó una acción positiva destacada" },
-  { value: "other", label: "Otro" },
-] as const;
-
-const timeframeOptions: { value: Timeframe; label: string }[] = [
-  { value: "today", label: "Hoy" },
-  { value: "few_days", label: "Hace pocos días" },
-  { value: "this_week", label: "Esta semana" },
-  { value: "since_arrival", label: "Desde su llegada" },
-  { value: "unsure", label: "En observación / no preciso" },
+const situationOptions: Array<{
+  value: VariationAlertReason;
+  label: string;
+}> = [
+  {
+    value: "low_performance_or_distracted",
+    label: "Bajó su rendimiento o está distraído",
+  },
+  {
+    value: "lost_motivation_or_low_attitude",
+    label: "Perdió motivación o muestra una actitud apagada",
+  },
+  {
+    value: "problems_with_coworkers",
+    label: "Tiene problemas con compañeros",
+  },
+  {
+    value: "isolates_or_frequent_complaints",
+    label: "Se aísla o presenta quejas frecuentes",
+  },
+  {
+    value: "positive_action",
+    label: "Realizó una acción positiva destacada",
+  },
+  {
+    value: "other",
+    label: "Otro",
+  },
 ];
 
-const actionOptions = [
-  { value: "direct_conversation", label: "Conversación directa para motivar o corregir" },
-  { value: "field_observation", label: "Observación en campo y registro de notas" },
-  { value: "repeated_suggestions", label: "Sugerencias repetidas (más de dos veces)" },
-  { value: "task_reminders", label: "Recordatorios claros sobre las tareas" },
-  { value: "active_follow_up", label: "Seguimiento activo en progreso" },
-] as const;
+const timeframeOptions: Array<{
+  value: VariationAlertSinceWhen;
+  label: string;
+}> = [
+  {
+    value: "today",
+    label: "Hoy",
+  },
+  {
+    value: "few_days",
+    label: "Hace pocos días",
+  },
+  {
+    value: "this_week",
+    label: "Esta semana",
+  },
+  {
+    value: "since_arrival",
+    label: "Desde su llegada",
+  },
+  {
+    value: "observation_unclear",
+    label: "En observación / no preciso",
+  },
+];
+
+const actionOptions: Array<{
+  value: VariationAlertAction;
+  label: string;
+}> = [
+  {
+    value: "direct_conversation",
+    label: "Conversación directa para motivar o corregir",
+  },
+  {
+    value: "field_observation_and_notes",
+    label: "Observación en campo y registro de notas",
+  },
+  {
+    value: "repeated_suggestions",
+    label: "Sugerencias repetidas (más de dos veces)",
+  },
+  {
+    value: "clear_task_reminders",
+    label: "Recordatorios claros sobre las tareas",
+  },
+  {
+    value: "active_follow_up",
+    label: "Seguimiento activo en progreso",
+  },
+];
 
 export default function PerformanceVariationAlert() {
   const { foreignWorkers, workersListLoading, error } = useForeignWorkers();
+
+  const {
+  createVariationAlert,
+  saving,
+  error: saveError,
+  clearError,
+} = useEvaluation();
+
   const teamLeaders = useMemo(
     () =>
       foreignWorkers.filter(
@@ -82,10 +154,28 @@ export default function PerformanceVariationAlert() {
   );
   const [selectedTeamLeaderId, setSelectedTeamLeaderId] = useState("");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
-  const [alertLevel, setAlertLevel] = useState<AlertLevel | "">("");
-  const [situations, setSituations] = useState<string[]>([]);
-  const [timeframe, setTimeframe] = useState<Timeframe | "">("");
-  const [actions, setActions] = useState<string[]>([]);
+  const [alertLevel, setAlertLevel] =
+  useState<VariationAlertType | "">("");
+
+const [situations, setSituations] =
+  useState<VariationAlertReason[]>([]);
+
+const [timeframe, setTimeframe] =
+  useState<VariationAlertSinceWhen | "">("");
+
+const [actions, setActions] =
+  useState<VariationAlertAction[]>([]);
+
+const [otherSituation, setOtherSituation] =
+  useState("");
+
+const [formError, setFormError] =
+  useState("");
+
+const [submitted, setSubmitted] =
+  useState(false);
+
+
   const selectedTeamLeader = teamLeaders.find(
     (worker) => String(worker.id) === selectedTeamLeaderId,
   );
@@ -93,17 +183,97 @@ export default function PerformanceVariationAlert() {
     (worker) => String(worker.id) === selectedEmployeeId,
   );
 
-  const toggleSelection = (
-    value: string,
-    selections: string[],
-    setSelections: (nextSelections: string[]) => void,
-  ) => {
-    setSelections(
-      selections.includes(value)
-        ? selections.filter((selection) => selection !== value)
-        : [...selections, value],
+ const toggleSelection = <T extends string>(
+  value: T,
+  selections: T[],
+  setSelections: (nextSelections: T[]) => void,
+) => {
+  setSelections(
+    selections.includes(value)
+      ? selections.filter(
+          (selection) => selection !== value,
+        )
+      : [...selections, value],
+  );
+
+  setFormError("");
+  clearError();
+};
+
+const submitAlert = async (
+  event: FormEvent<HTMLFormElement>,
+) => {
+  event.preventDefault();
+
+  setFormError("");
+  clearError();
+
+  if (!selectedTeamLeader) {
+    setFormError(
+      "Seleccione un jefe de equipo.",
     );
-  };
+    return;
+  }
+
+  if (!selectedEmployee) {
+    setFormError(
+      "Seleccione un empleado.",
+    );
+    return;
+  }
+
+  if (!alertLevel) {
+    setFormError(
+      "Seleccione el tipo de alerta.",
+    );
+    return;
+  }
+
+  if (situations.length === 0) {
+    setFormError(
+      "Seleccione al menos una situación.",
+    );
+    return;
+  }
+
+  if (
+    situations.includes("other") &&
+    !otherSituation.trim()
+  ) {
+    setFormError(
+      "Describa la otra situación.",
+    );
+    return;
+  }
+
+  if (!timeframe) {
+    setFormError(
+      "Seleccione desde cuándo observa la situación.",
+    );
+    return;
+  }
+
+  const result = await createVariationAlert({
+    leader_user_id: selectedTeamLeader.id,
+    worker_user_id: selectedEmployee.id,
+
+    alert_type: alertLevel,
+    since_when: timeframe,
+
+    reasons: situations,
+    actions,
+
+    other_reason: situations.includes("other")
+      ? otherSituation.trim()
+      : undefined,
+  });
+
+  if (!result) {
+    return;
+  }
+
+  setSubmitted(true);
+};
 
   return (
     <main className="min-h-screen px-3 py-8 font-primary sm:px-6">
@@ -122,7 +292,7 @@ export default function PerformanceVariationAlert() {
          
         </header>
 
-        <form onSubmit={(event) => event.preventDefault()} className="space-y-8 p-5 sm:p-8">
+        <form onSubmit={submitAlert} className="space-y-8 p-5 sm:p-8">
           <section aria-labelledby="employee-heading">
             <SectionHeading number="1" id="employee-heading">
               Jefe de equipo y empleado
@@ -224,14 +394,20 @@ export default function PerformanceVariationAlert() {
             {situations.includes("other") && (
               <label htmlFor="other-situation" className="mt-3 block text-sm font-semibold text-slate-800">
                 Describa la otra situación
-                <textarea
-                  id="other-situation"
-                  name="other-situation"
-                  rows={3}
-                  maxLength={1000}
-                  placeholder="Explique brevemente qué está observando."
-                  className="mt-2 block w-full resize-y rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-sm font-normal outline-none transition focus:border-secondary focus:ring-2 focus:ring-primary/30"
-                />
+              <textarea
+  id="other-situation"
+  name="other-situation"
+  rows={3}
+  maxLength={1000}
+  value={otherSituation}
+  onChange={(event) => {
+    setOtherSituation(event.target.value);
+    setFormError("");
+    clearError();
+  }}
+  placeholder="Explique brevemente qué está observando."
+  className="mt-2 block w-full resize-y rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-sm font-normal outline-none transition focus:border-secondary focus:ring-2 focus:ring-primary/30"
+/>
               </label>
             )}
           </fieldset>
@@ -283,9 +459,56 @@ export default function PerformanceVariationAlert() {
             </div>
           </fieldset>
 
-          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            La acción de envío se añadirá cuando se defina el destino de estos reportes.
-          </div>
+          {(formError || saveError) && (
+  <p
+    role="alert"
+    className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
+  >
+    {formError || saveError}
+  </p>
+)}
+
+{submitted ? (
+  <div className="rounded-xl border border-primary/40 bg-tertiary px-5 py-5">
+    <p className="font-secondary text-lg font-bold text-deepgreen">
+      Alerta enviada correctamente
+    </p>
+
+    <p className="mt-1 text-sm text-slate-700">
+      La variación de desempeño fue registrada.
+    </p>
+
+    <button
+      type="button"
+      onClick={() => {
+        setSelectedEmployeeId("");
+        setAlertLevel("");
+        setSituations([]);
+        setTimeframe("");
+        setActions([]);
+        setOtherSituation("");
+        setFormError("");
+        clearError();
+        setSubmitted(false);
+      }}
+      className="button-primary mt-4"
+    >
+      Nueva alerta
+    </button>
+  </div>
+) : (
+  <div className="flex justify-end">
+    <button
+      type="submit"
+      disabled={saving}
+      className="button-primary"
+    >
+      {saving
+        ? "Guardando…"
+        : "Enviar alerta"}
+    </button>
+  </div>
+)}
         </form>
       </article>
     </main>
