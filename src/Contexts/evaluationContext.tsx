@@ -17,6 +17,15 @@ export type Frequency = 1 | 2 | 3 | 4 | 5;
 
 export type MonthlyAnswers = Record<string, Frequency>;
 
+export type MonthlyEvaluationQuestion = {
+  question_key: string;
+  question_number: number;
+  question_text: string;
+  category: string | null;
+  is_negative: boolean;
+  is_active: boolean;
+};
+
 /* =========================================================
    MONTHLY EVALUATIONS
 ========================================================= */
@@ -214,6 +223,11 @@ type EvaluationContextValue = {
   ) => Promise<VariationAlertSubmissionResult | null>;
 
   clearError: () => void;
+
+  monthlyQuestions: MonthlyEvaluationQuestion[];
+
+fetchMonthlyQuestions: () =>
+  Promise<MonthlyEvaluationQuestion[]>;
 };
 
 const EvaluationContext =
@@ -273,6 +287,9 @@ export function EvaluationProvider({
 
   const [error, setError] = useState("");
   const variationAlertSubmissionInFlight = useRef(false);
+
+  const [monthlyQuestions, setMonthlyQuestions] =
+  useState<MonthlyEvaluationQuestion[]>([]);
 
   const clearError = useCallback(() => {
     setError("");
@@ -398,6 +415,53 @@ export function EvaluationProvider({
     },
     [],
   );
+
+  const fetchMonthlyQuestions = useCallback(
+  async (): Promise<MonthlyEvaluationQuestion[]> => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await fetch(
+        `${EVALUATION_API}/questions/monthly`,
+        {
+          method: "GET",
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await readApiError(response),
+        );
+      }
+
+      const data: MonthlyEvaluationQuestion[] =
+        await response.json();
+
+      setMonthlyQuestions(data);
+
+      return data;
+    } catch (err) {
+      console.error(
+        "Error fetching monthly questions:",
+        err,
+      );
+
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Erreur lors du chargement des questions.";
+
+      setError(message);
+
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  },
+  [],
+);
 
   const createEvaluation = useCallback(
     async (
@@ -647,7 +711,7 @@ export function EvaluationProvider({
     () => ({
       evaluations,
       variationAlerts,
-
+      monthlyQuestions,  
       loading,
       saving,
       error,
@@ -655,6 +719,8 @@ export function EvaluationProvider({
       fetchEvaluations,
       fetchEvaluationById,
       createEvaluation,
+
+      fetchMonthlyQuestions,
 
       fetchVariationAlerts,
       fetchVariationAlertById,
@@ -665,7 +731,7 @@ export function EvaluationProvider({
     [
       evaluations,
       variationAlerts,
-
+      monthlyQuestions,
       loading,
       saving,
       error,
@@ -673,6 +739,8 @@ export function EvaluationProvider({
       fetchEvaluations,
       fetchEvaluationById,
       createEvaluation,
+
+      fetchMonthlyQuestions,
 
       fetchVariationAlerts,
       fetchVariationAlertById,
