@@ -504,7 +504,7 @@ const submitAlert = async (
               <SectionHeading number="3">¿Qué está pasando?</SectionHeading>
             </legend>
             <p className="mt-2 text-sm text-slate-600">Seleccione una opción.</p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 max-w-[100%]">
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 max-w-full">
               {situationOptions.map((option) => (
                 <SingleChoiceOption
                   key={option.value}

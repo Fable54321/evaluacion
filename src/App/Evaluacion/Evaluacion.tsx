@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useForeignWorkers } from "../../Contexts/ForeignWorkersContext";
-import { useEvaluation } from "../../Contexts/evaluationContext";
-import  {
+import {
   type MonthlyAnswers,
 } from "../../Contexts/evaluationContext";
 import MonthlyEvaluation from "./MonthlyEvaluation";
+import { submitEvaluation } from "../../Utils/offlineSync";
 import {
   deleteEvaluationDraft,
   getEvaluationDraft,
   saveEvaluationDraft,
   type EvaluationDraft,
+  type OfflineEvaluationPayload,
 } from "../../Utils/offlineDb";
 import { useEvaluationSync } from "../../Hooks/useEvaluationSync";
 import { useOfflineReadiness } from "../../Hooks/useOfflineReadiness";
@@ -20,12 +21,6 @@ type Step = "setup" | "evaluation" | "complete";
 export default function Evaluacion() {
   const { user } = useAuth();
   const { foreignWorkers, workersListLoading, error } = useForeignWorkers();
-  const {
-  createEvaluation,
-  saving,
-  error: evaluationError,
-  clearError,
-} = useEvaluation();
   const evaluators = useMemo(
     () =>
       foreignWorkers.filter(
@@ -45,6 +40,8 @@ export default function Evaluacion() {
   const [step, setStep] = useState<Step>("setup");
   const [answers, setAnswers] = useState<MonthlyAnswers>({});
   const [comments, setComments] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const [clientSubmissionId, setClientSubmissionId] = useState<string>(() =>
     crypto.randomUUID(),
@@ -134,35 +131,45 @@ export default function Evaluacion() {
     }
   };
   const saveEvaluation = async () => {
-  if (!selectedEvaluator || !selectedWorker) return;
+    if (!selectedEvaluator || !selectedWorker) return;
 
-  clearError();
+    try {
+      setSaving(true);
+      setSaveError("");
+      const payload: OfflineEvaluationPayload = {
+        schemaVersion: 3,
+        clientSubmissionId,
+        evaluatorId: selectedEvaluator.id,
+        evaluatedWorkerId: selectedWorker.id,
+        evaluationType: "one_to_two_seasons",
+        answers,
+        comments: comments.trim(),
+      };
+      const result = await submitEvaluation(payload);
 
-  const evaluation = await createEvaluation({
-    worker_user_id: selectedWorker.id,
-    evaluator_user_id: selectedEvaluator.id,
-    answers,
-    comments: comments.trim(),
-  });
+      if (user) {
+        await deleteEvaluationDraft(user.id).catch(() => undefined);
+      }
 
-  if (!evaluation) {
-    return;
-  }
-
-  if (user) {
-    await deleteEvaluationDraft(user.id).catch(() => undefined);
-  }
-
-  setSaveStatus("synced");
-  setDraftStatus("idle");
-  setStep("complete");
-};
+      setSaveStatus(result.status);
+      setDraftStatus("idle");
+      setStep("complete");
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar la evaluación.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
   const startNextEvaluation = () => {
     if (user) void deleteEvaluationDraft(user.id);
     setSelectedWorkerId("");
     setAnswers({});
     setComments("");
-    clearError();
+    setSaveError("");
     setSaveStatus("synced");
     setClientSubmissionId(crypto.randomUUID());
     setStep("setup");
@@ -270,11 +277,11 @@ export default function Evaluacion() {
                     comments={comments}
                     onAnswersChange={setAnswers}
                     onCommentsChange={setComments}
-                    clearError={clearError}
+                    clearError={() => setSaveError("")}
                     onBack={() => setStep("setup")}
                     onSubmit={saveEvaluation}
                     saving={saving}
-                    error={evaluationError}
+                    error={saveError}
                   />
                 ) : (
                   <div className="mx-auto max-w-xl py-8 text-center">

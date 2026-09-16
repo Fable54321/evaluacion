@@ -13,7 +13,10 @@ import {
   type OfflineVariationAlertPayload,
 } from "./offlineDb";
 
-export type EvaluationSaveResponse = { evaluationId: string; scores: { total_weighted_score: string }; deduplicated: boolean };
+export type EvaluationSaveResponse = {
+  message: string;
+  evaluation: { id: number } & Record<string, unknown>;
+};
 export type SubmissionResult = { status: "synced"; response: EvaluationSaveResponse } | { status: "queued" };
 export type VariationAlertSaveResponse = {
   message: string;
@@ -37,13 +40,25 @@ function isNetworkFailure(error: unknown) {
   return error instanceof Error && /failed to fetch|networkerror|network request failed/i.test(error.message);
 }
 
+function toEvaluationApiPayload(payload: OfflineEvaluationPayload) {
+  return {
+    worker_user_id: payload.evaluatedWorkerId,
+    evaluator_user_id: payload.evaluatorId,
+    answers: payload.answers,
+    comments: payload.comments,
+  };
+}
+
 export async function submitEvaluation(payload: OfflineEvaluationPayload): Promise<SubmissionResult> {
   if (!navigator.onLine) {
     await queueEvaluation(payload);
     return { status: "queued" };
   }
   try {
-    const response = await fetchWithAuth<EvaluationSaveResponse>("/evaluation", { method: "POST", body: payload });
+    const response = await fetchWithAuth<EvaluationSaveResponse>("/evaluation-new", {
+      method: "POST",
+      body: toEvaluationApiPayload(payload),
+    });
     return { status: "synced", response };
   } catch (error) {
     if (!isNetworkFailure(error)) throw error;
@@ -89,7 +104,10 @@ async function synchronizeOutboxes() {
   let lastError: string | null = null;
   for (const record of records) {
     try {
-      await fetchWithAuth<EvaluationSaveResponse>("/evaluation", { method: "POST", body: record.payload });
+      await fetchWithAuth<EvaluationSaveResponse>("/evaluation-new", {
+        method: "POST",
+        body: toEvaluationApiPayload(record.payload),
+      });
       await removeQueuedEvaluation(record.clientSubmissionId);
       synced += 1;
     } catch (error) {
