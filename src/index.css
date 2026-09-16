@@ -13,6 +13,8 @@
   --color-secondary: #4b7312;
   --color-deepgreen: #263f08;
   --color-tertiary: #F6F9F3;
+   --color-orange-dark: #ff5714;
+  --color-orange-light: rgb(from var(--color-orange-dark) r g b / 0.02);
   --font-primary: var(--font-primary);
   --font-secondary: var(--font-secondary);
   --font-poppins: var(--font-poppins);

@@ -341,7 +341,7 @@ function OfflineReadinessNotice({
   const appearance = ready
     ? "border-primary bg-tertiary text-deepgreen"
     : unavailable
-      ? "border-amber-300 bg-amber-50 text-amber-950"
+      ? "border-orange-dark bg-orange-light text-black"
       : "border-blue-200 bg-blue-50 text-blue-900";
   const message = ready
     ? "Aplicación lista para usar sin Wi-Fi"
@@ -355,7 +355,7 @@ function OfflineReadinessNotice({
       className={`print-hide mb-3 flex w-[min(100%,800px)] items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${appearance}`}
     >
       <span
-        className={`size-2.5 shrink-0 rounded-full ${ready ? "bg-primary" : unavailable ? "bg-amber-500" : "bg-blue-500"}`}
+        className={`size-2.5 shrink-0 rounded-full ${ready ? "bg-primary" : unavailable ? "bg-orange-dark" : "bg-blue-500"}`}
       />
       {message}
     </aside>
@@ -493,7 +493,7 @@ function SyncStatus({ status }: { status: EvaluationSyncStatus }) {
       ? "border-red-200 bg-red-50 text-red-800"
       : syncing || pendingCount
         ? "border-blue-200 bg-blue-50 text-blue-900"
-        : "border-primary/40 bg-white text-deepgreen";
+        : "border-primary bg-white text-deepgreen";
   const message = !online
     ? `Sin conexión${pendingCount ? ` · ${pendingCount} evaluación${pendingCount === 1 ? "" : "es"} pendiente${pendingCount === 1 ? "" : "s"}` : ""}`
     : syncing
