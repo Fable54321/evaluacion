@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useForeignWorkers } from "../../Contexts/ForeignWorkersContext";
 import {
   type MonthlyAnswers,
@@ -410,6 +410,7 @@ function SearchableWorkerSelect({
 }) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const selected = options.find((worker) => String(worker.id) === value);
   const normalizedQuery = normalizeSearch(query);
   const filteredWorkers = options.filter((worker) =>
@@ -422,6 +423,7 @@ function SearchableWorkerSelect({
     <div className="relative flex flex-col gap-1 font-primary font-medium">
       <label htmlFor={id}>{label}</label>
       <input
+        ref={inputRef}
         id={id}
         type="search"
         autoComplete="off"
@@ -452,6 +454,7 @@ function SearchableWorkerSelect({
                   onChange(String(worker.id));
                   setEditing(false);
                   setQuery("");
+                  inputRef.current?.blur();
                 }}
                 className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-tertiary"
               >

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   useForeignWorkers,
   type Worker,
@@ -816,6 +816,7 @@ function SearchableWorkerSelect({
 }) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const selected = options.find((worker) => String(worker.id) === value);
   const normalizedQuery = normalizeSearch(query);
   const filteredWorkers = options.filter((worker) =>
@@ -828,6 +829,7 @@ function SearchableWorkerSelect({
     <div className="relative flex min-w-0 flex-col gap-2 text-sm font-semibold text-slate-800">
       <label htmlFor={id}>{label}</label>
       <input
+        ref={inputRef}
         id={id}
         type="search"
         autoComplete="off"
@@ -858,6 +860,7 @@ function SearchableWorkerSelect({
                   onChange(String(worker.id));
                   setEditing(false);
                   setQuery("");
+                  inputRef.current?.blur();
                 }}
                 className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm font-medium hover:bg-tertiary"
               >
