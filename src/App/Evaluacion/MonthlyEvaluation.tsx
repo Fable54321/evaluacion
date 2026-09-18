@@ -221,7 +221,7 @@ export default function MonthlyEvaluation({
                           firstMissingQuestionId ===
                           question.question_key
                         }
-                        className={`scroll-mt-28 rounded-xl border p-4 ${
+                        className={`scroll-mt-28 rounded-xl border p-2 ${
                           firstMissingQuestionId ===
                           question.question_key
                             ? "border-red-400 bg-red-50 ring-2 ring-red-200"

@@ -173,6 +173,7 @@ export default function Evaluacion() {
     setSaveStatus("synced");
     setClientSubmissionId(crypto.randomUUID());
     setStep("setup");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
   return (
     <main className="min-h-screen px-2 py-8 sm:px-6 font-primary">

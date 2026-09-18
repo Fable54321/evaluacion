@@ -678,6 +678,7 @@ const submitAlert = async (
         setDraftStatus("idle");
         setClientSubmissionId(crypto.randomUUID());
         setSubmitted(false);
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }}
       className="button-primary mt-4"
     >
