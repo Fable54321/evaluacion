@@ -134,6 +134,11 @@ export default function Evaluacion() {
     }
   };
   const cancelEvaluation = async () => {
+    const confirmed = window.confirm(
+      "¿Cancelar esta evaluación? Se perderán las respuestas y los comentarios guardados.",
+    );
+    if (!confirmed) return;
+
     setSelectedEvaluatorId("");
     setSelectedWorkerId("");
     setAnswers({});
