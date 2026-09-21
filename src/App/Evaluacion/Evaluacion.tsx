@@ -49,6 +49,7 @@ export default function Evaluacion() {
   const [saveStatus, setSaveStatus] = useState<"synced" | "queued">("synced");
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const draftWriteRef = useRef<Promise<void>>(Promise.resolve());
   const syncStatus = useEvaluationSync();
   const offlineShellStatus = useOfflineReadiness();
   const selectedEvaluator = evaluators.find(
@@ -104,7 +105,9 @@ export default function Evaluacion() {
         step,
         updatedAt: new Date().toISOString(),
       };
-      void saveEvaluationDraft(draft)
+      const draftWrite = saveEvaluationDraft(draft);
+      draftWriteRef.current = draftWrite;
+      void draftWrite
         .then(() => setDraftStatus("saved"))
         .catch(() => setDraftStatus("idle"));
     }, 300);
@@ -128,6 +131,23 @@ export default function Evaluacion() {
     event.preventDefault();
     if (selectedEvaluator && selectedWorker) {
       setStep("evaluation");
+    }
+  };
+  const cancelEvaluation = async () => {
+    setSelectedEvaluatorId("");
+    setSelectedWorkerId("");
+    setAnswers({});
+    setComments("");
+    setSaveError("");
+    setDraftStatus("idle");
+    setClientSubmissionId(crypto.randomUUID());
+    setStep("setup");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    if (user) {
+      await draftWriteRef.current.catch(() => undefined);
+      await deleteEvaluationDraft(user.id).catch(() => undefined);
+      setDraftStatus("idle");
     }
   };
   const saveEvaluation = async () => {
@@ -260,16 +280,28 @@ export default function Evaluacion() {
           </form>
         ) : selectedWorker ? (
             <section className="mt-6 w-[min(100%,800px)] rounded-xl border border-gray-200 bg-white shadow-sm">
-              <header className="sticky top-0 z-10 rounded-t-xl border-b border-primary/30 bg-tertiary px-4 py-3 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wide text-secondary">
-                  Persona evaluada
-                </p>
-                <h2 className="mt-0.5 text-xl font-semibold text-slate-950">
-                  {formatWorkerName(selectedWorker)}
-                </h2>
-                <p className="text-sm text-slate-600">
-                  Matrícula {selectedWorker.matricula}
-                </p>
+              <header className="sticky top-0 z-10 flex items-center justify-between gap-4 rounded-t-xl border-b border-primary/30 bg-tertiary px-4 py-3 shadow-sm">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-secondary">
+                    Persona evaluada
+                  </p>
+                  <h2 className="mt-0.5 text-xl font-semibold text-slate-950">
+                    {formatWorkerName(selectedWorker)}
+                  </h2>
+                  <p className="text-sm text-slate-600">
+                    Matrícula {selectedWorker.matricula}
+                  </p>
+                </div>
+                {step === "evaluation" && (
+                  <button
+                    type="button"
+                    onClick={() => void cancelEvaluation()}
+                    disabled={saving}
+                    className="print-hide shrink-0 rounded-lg border border-red-700 bg-white px-3 py-2 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-40"
+                  >
+                    Cancelar evaluación
+                  </button>
+                )}
               </header>
               <div className="p-2 sm:p-5">
                 {step === "evaluation" ? (
@@ -279,7 +311,7 @@ export default function Evaluacion() {
                     onAnswersChange={setAnswers}
                     onCommentsChange={setComments}
                     clearError={() => setSaveError("")}
-                    onBack={() => setStep("setup")}
+                    onCancel={() => void cancelEvaluation()}
                     onSubmit={saveEvaluation}
                     saving={saving}
                     error={saveError}
@@ -325,7 +357,7 @@ function PrintEvaluation() {
           comments=""
           onAnswersChange={doNothing}
           onCommentsChange={doNothing}
-          onBack={doNothing}
+          onCancel={doNothing}
           onSubmit={doNothing}
           saving={false}
           clearError={doNothing}

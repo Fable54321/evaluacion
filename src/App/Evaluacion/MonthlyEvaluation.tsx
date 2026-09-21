@@ -18,7 +18,7 @@ type Props = {
   comments: string;
   onAnswersChange: (answers: MonthlyAnswers) => void;
   onCommentsChange: (comments: string) => void;
-  onBack: () => void;
+  onCancel: () => void;
   clearError: () => void;
   onSubmit: () => void | Promise<void>;
   saving: boolean;
@@ -31,7 +31,7 @@ export default function MonthlyEvaluation({
   comments,
   onAnswersChange,
   onCommentsChange,
-  onBack,
+  onCancel,
   clearError,
   onSubmit,
   saving,
@@ -369,11 +369,11 @@ export default function MonthlyEvaluation({
         <div className="mt-6 flex items-center justify-between gap-3">
           <button
             type="button"
-            onClick={onBack}
+            onClick={onCancel}
             disabled={saving}
             className="button-secondary"
           >
-            Anterior
+            Cancelar evaluación
           </button>
 
           <button
