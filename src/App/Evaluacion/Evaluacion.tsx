@@ -251,7 +251,7 @@ export default function Evaluacion() {
   };
   return (
     <main className="min-h-screen px-2 py-8 sm:px-6 font-primary">
-      <div className="print-button fixed right-3 top-3 z-30 sm:right-5 sm:top-5">
+      {/* <div className="print-button fixed right-3 top-3 z-30 sm:right-5 sm:top-5">
         <button
           type="button"
           onClick={() => window.print()}
@@ -263,7 +263,7 @@ export default function Evaluacion() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z" />
           </svg>
         </button>
-      </div>
+      </div> */}
       <article className="mx-auto flex w-full max-w-4xl flex-col items-center">
         <OfflineReadinessNotice
           shellStatus={offlineShellStatus}
