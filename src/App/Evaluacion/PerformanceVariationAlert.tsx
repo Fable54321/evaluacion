@@ -91,6 +91,17 @@ const positiveSituationValues: VariationAlertReason[] = [
 const isPositiveSituation = (value: VariationAlertReason | "") =>
   value !== "" && positiveSituationValues.includes(value);
 
+const isSituationAllowed = (
+  alertLevel: VariationAlertType | "",
+  value: VariationAlertReason | "",
+) => {
+  if (!alertLevel || !value || value === "other") return true;
+
+  return alertLevel === "positive"
+    ? isPositiveSituation(value)
+    : !isPositiveSituation(value);
+};
+
 const timeframeOptions: Array<{
   value: VariationAlertSinceWhen;
   label: string;
@@ -229,9 +240,9 @@ useEffect(() => {
         setSelectedEmployeeId(draft.selectedEmployeeId);
         setAlertLevel(draft.alertLevel);
         setSituation(
-          draft.alertLevel === "positive" && !isPositiveSituation(draft.situation)
-            ? ""
-            : draft.situation,
+          isSituationAllowed(draft.alertLevel, draft.situation)
+            ? draft.situation
+            : "",
         );
         setTimeframe(draft.timeframe);
         setAction(draft.action);
@@ -293,6 +304,8 @@ useEffect(() => {
 ]);
 
 const selectSituation = (value: VariationAlertReason) => {
+  if (!isSituationAllowed(alertLevel, value)) return;
+
   if (situation === "positive_action" && value !== "positive_action") {
     setPositiveSituation("");
   }
@@ -309,7 +322,7 @@ const selectSituation = (value: VariationAlertReason) => {
 const selectAlertLevel = (value: VariationAlertType) => {
   setAlertLevel(value);
 
-  if (value === "positive" && !isPositiveSituation(situation)) {
+  if (!isSituationAllowed(value, situation)) {
     setSituation("");
     setOtherSituation("");
     setPositiveSituation("");
@@ -351,6 +364,13 @@ const submitAlert = async (
   if (!situation) {
     setFormError(
       "Seleccione al menos una situación.",
+    );
+    return;
+  }
+
+  if (!isSituationAllowed(alertLevel, situation)) {
+    setFormError(
+      "Seleccione una situaciÃ³n compatible con el tipo de alerta.",
     );
     return;
   }
@@ -531,8 +551,7 @@ const submitAlert = async (
             <p className="mt-2 text-sm text-slate-600">Seleccione una opción.</p>
             <div className="mt-4 grid gap-2 sm:grid-cols-2 max-w-full">
               {situationOptions.map((option) => {
-                const disabled =
-                  alertLevel === "positive" && !isPositiveSituation(option.value);
+                const disabled = !isSituationAllowed(alertLevel, option.value);
 
                 return (
                   <SingleChoiceOption
