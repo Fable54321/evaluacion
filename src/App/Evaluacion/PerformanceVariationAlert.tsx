@@ -225,6 +225,17 @@ const draftWriteRef = useRef<Promise<void>>(Promise.resolve());
 const syncStatus = useEvaluationSync();
 const offlineShellStatus = useOfflineReadiness();
 
+const alertHasContent = Boolean(
+  selectedTeamLeaderId ||
+  selectedEmployeeId ||
+  alertLevel ||
+  situation ||
+  timeframe ||
+  action ||
+  otherSituation.trim() ||
+  positiveSituation.trim()
+);
+
 
   const selectedTeamLeader = teamLeaders.find(
     (worker) => String(worker.id) === selectedTeamLeaderId,
@@ -268,7 +279,7 @@ useEffect(() => {
 }, [user]);
 
 useEffect(() => {
-  if (!user || !draftLoaded || submitted) return;
+  if (!user || !draftLoaded || submitted || !alertHasContent) return;
 
   const timeout = window.setTimeout(() => {
     setDraftStatus("saving");
@@ -308,6 +319,7 @@ useEffect(() => {
   action,
   otherSituation,
   positiveSituation,
+  alertHasContent,
 ]);
 
 const selectSituation = (value: VariationAlertReason) => {
@@ -339,17 +351,36 @@ const selectAlertLevel = (value: VariationAlertType) => {
   clearError();
 };
 
-const switchToMonthlyEvaluation = async () => {
-  const alertStarted = !submitted && Boolean(
-    selectedTeamLeaderId ||
-    selectedEmployeeId ||
-    alertLevel ||
-    situation ||
-    timeframe ||
-    action ||
-    otherSituation.trim() ||
-    positiveSituation.trim()
+const cancelVariationAlert = async () => {
+  const confirmed = window.confirm(
+    "¿Cancelar esta alerta? Se perderán las respuestas y los comentarios guardados.",
   );
+  if (!confirmed) return;
+
+  setSelectedTeamLeaderId("");
+  setSelectedEmployeeId("");
+  setAlertLevel("");
+  setSituation("");
+  setTimeframe("");
+  setAction("");
+  setOtherSituation("");
+  setPositiveSituation("");
+  setFormError("");
+  clearError();
+  setSaveStatus("synced");
+  setDraftStatus("idle");
+  setClientSubmissionId(crypto.randomUUID());
+  window.scrollTo({ top: 0, behavior: "smooth" });
+
+  if (user) {
+    await draftWriteRef.current.catch(() => undefined);
+    await deleteVariationAlertDraft(user.id).catch(() => undefined);
+    setDraftStatus("idle");
+  }
+};
+
+const switchToMonthlyEvaluation = async () => {
+  const alertStarted = !submitted && alertHasContent;
   const evaluationDraft = user
     ? await getEvaluationDraft(user.id).catch(() => null)
     : null;
@@ -766,7 +797,16 @@ const submitAlert = async (
     </button>
   </div>
 ) : (
-  <div className="flex justify-end">
+  <div className="flex items-center justify-between gap-3">
+    <button
+      type="button"
+      onClick={() => void cancelVariationAlert()}
+      disabled={saving}
+      className="button-secondary"
+    >
+      Cancelar
+    </button>
+
     <button
       type="submit"
       disabled={saving}
