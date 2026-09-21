@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { useForeignWorkers } from "../../Contexts/ForeignWorkersContext";
 import {
   type MonthlyAnswers,
@@ -8,6 +9,7 @@ import { submitEvaluation } from "../../Utils/offlineSync";
 import {
   deleteEvaluationDraft,
   getEvaluationDraft,
+  getVariationAlertDraft,
   saveEvaluationDraft,
   type EvaluationDraft,
   type OfflineEvaluationPayload,
@@ -19,6 +21,7 @@ import { useAuth } from "../../Contexts/AuthContext";
 type Step = "setup" | "evaluation" | "complete";
 
 export default function Evaluacion() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { foreignWorkers, workersListLoading, error } = useForeignWorkers();
   const evaluators = useMemo(
@@ -155,6 +158,52 @@ export default function Evaluacion() {
       setDraftStatus("idle");
     }
   };
+  const switchToVariationAlert = async () => {
+    const evaluationStarted = step === "evaluation";
+    const alertDraft = user
+      ? await getVariationAlertDraft(user.id).catch(() => null)
+      : null;
+    const alertStarted = Boolean(
+      alertDraft && (
+        alertDraft.selectedTeamLeaderId ||
+        alertDraft.selectedEmployeeId ||
+        alertDraft.alertLevel ||
+        alertDraft.situation ||
+        alertDraft.timeframe ||
+        alertDraft.action ||
+        alertDraft.otherSituation.trim() ||
+        alertDraft.positiveSituation.trim()
+      ),
+    );
+
+    if (evaluationStarted || alertStarted) {
+      const message = evaluationStarted && alertStarted
+        ? "Hay una evaluación y una alerta en curso. La evaluación se guardará y se abrirá el borrador de la alerta. ¿Continuar?"
+        : evaluationStarted
+          ? "Hay una evaluación en curso. Se guardará como borrador para que pueda continuarla después. ¿Cambiar a una alerta?"
+          : "Ya hay una alerta en curso. Al cambiar, se abrirá ese borrador. ¿Continuar?";
+
+      if (!window.confirm(message)) return;
+    }
+
+    if (evaluationStarted && user && selectedEvaluator && selectedWorker) {
+      await draftWriteRef.current.catch(() => undefined);
+      await saveEvaluationDraft({
+        schemaVersion: 3,
+        userId: user.id,
+        clientSubmissionId,
+        evaluatorId: selectedEvaluator.id,
+        evaluatedWorkerId: selectedWorker.id,
+        evaluationType: "one_to_two_seasons",
+        answers,
+        comments,
+        step: "evaluation",
+        updatedAt: new Date().toISOString(),
+      }).catch(() => undefined);
+    }
+
+    navigate("/variacion-de-desempeno");
+  };
   const saveEvaluation = async () => {
     if (!selectedEvaluator || !selectedWorker) return;
 
@@ -237,6 +286,13 @@ export default function Evaluacion() {
         <p className="mt-1 text-center text-md text-slate-800">
           Empleados con 1–2 temporadas · {new Date().getFullYear()}
         </p>
+        <button
+          type="button"
+          onClick={() => void switchToVariationAlert()}
+          className="print-hide mt-3 rounded-lg border border-secondary bg-white px-4 py-2 text-sm font-bold text-secondary transition hover:bg-tertiary"
+        >
+          Crear alerta de variación
+        </button>
         {step === "setup" ? (
           <form
             onSubmit={beginEvaluation}
@@ -304,7 +360,7 @@ export default function Evaluacion() {
                     disabled={saving}
                     className="print-hide shrink-0 rounded-lg border border-red-700 bg-white px-3 py-2 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-40"
                   >
-                    Cancelar evaluación
+                    Cancelar
                   </button>
                 )}
               </header>

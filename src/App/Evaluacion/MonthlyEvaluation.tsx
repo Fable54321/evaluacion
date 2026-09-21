@@ -373,7 +373,7 @@ export default function MonthlyEvaluation({
             disabled={saving}
             className="button-secondary"
           >
-            Cancelar evaluación
+            Cancelar
           </button>
 
           <button

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   useForeignWorkers,
   type Worker,
@@ -14,6 +15,7 @@ import {
 import { useAuth } from "../../Contexts/AuthContext";
 import {
   deleteVariationAlertDraft,
+  getEvaluationDraft,
   getVariationAlertDraft,
   saveVariationAlertDraft,
   type VariationAlertDraft,
@@ -155,6 +157,7 @@ const actionOptions: Array<{
 ];
 
 export default function PerformanceVariationAlert() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { foreignWorkers, workersListLoading, error } = useForeignWorkers();
 
@@ -216,6 +219,8 @@ const [draftLoaded, setDraftLoaded] =
 
 const [draftStatus, setDraftStatus] =
   useState<"idle" | "saving" | "saved">("idle");
+
+const draftWriteRef = useRef<Promise<void>>(Promise.resolve());
 
 const syncStatus = useEvaluationSync();
 const offlineShellStatus = useOfflineReadiness();
@@ -282,7 +287,9 @@ useEffect(() => {
       updatedAt: new Date().toISOString(),
     };
 
-    void saveVariationAlertDraft(draft)
+    const draftWrite = saveVariationAlertDraft(draft);
+    draftWriteRef.current = draftWrite;
+    void draftWrite
       .then(() => setDraftStatus("saved"))
       .catch(() => setDraftStatus("idle"));
   }, 300);
@@ -330,6 +337,53 @@ const selectAlertLevel = (value: VariationAlertType) => {
 
   setFormError("");
   clearError();
+};
+
+const switchToMonthlyEvaluation = async () => {
+  const alertStarted = !submitted && Boolean(
+    selectedTeamLeaderId ||
+    selectedEmployeeId ||
+    alertLevel ||
+    situation ||
+    timeframe ||
+    action ||
+    otherSituation.trim() ||
+    positiveSituation.trim()
+  );
+  const evaluationDraft = user
+    ? await getEvaluationDraft(user.id).catch(() => null)
+    : null;
+  const evaluationStarted = Boolean(evaluationDraft);
+
+  if (alertStarted || evaluationStarted) {
+    const message = alertStarted && evaluationStarted
+      ? "Hay una alerta y una evaluación en curso. La alerta se guardará y se abrirá el borrador de la evaluación. ¿Continuar?"
+      : alertStarted
+        ? "Hay una alerta en curso. Se guardará como borrador para que pueda continuarla después. ¿Cambiar a una evaluación?"
+        : "Ya hay una evaluación en curso. Al cambiar, se abrirá ese borrador. ¿Continuar?";
+
+    if (!window.confirm(message)) return;
+  }
+
+  if (alertStarted && user) {
+    await draftWriteRef.current.catch(() => undefined);
+    await saveVariationAlertDraft({
+      schemaVersion: 1,
+      userId: user.id,
+      clientSubmissionId,
+      selectedTeamLeaderId,
+      selectedEmployeeId,
+      alertLevel,
+      situation,
+      timeframe,
+      action,
+      otherSituation,
+      positiveSituation,
+      updatedAt: new Date().toISOString(),
+    }).catch(() => undefined);
+  }
+
+  navigate("/evaluaciones-mensuales");
 };
 
 const submitAlert = async (
@@ -449,6 +503,13 @@ const submitAlert = async (
             Formulario breve para reportar cambios en el desempeño o la actitud de un empleado,
             facilitar el seguimiento y ofrecer apoyo oportuno.
           </p>
+          <button
+            type="button"
+            onClick={() => void switchToMonthlyEvaluation()}
+            className="mt-4 rounded-lg border border-secondary bg-white px-4 py-2 text-sm font-bold text-secondary transition hover:bg-tertiary"
+          >
+            Iniciar evaluación mensual
+          </button>
           <OfflineStatus
             shellStatus={offlineShellStatus}
             syncStatus={syncStatus}
