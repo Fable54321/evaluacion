@@ -528,7 +528,7 @@ const submitAlert = async (
             Empleados con más de 2 temporadas
           </p>
           <h1 className="mt-1 font-secondary text-2xl font-bold text-deepgreen sm:text-3xl">
-            Alerta de variación de desempeño
+            Alerta de desempeño
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700">
             Formulario breve para reportar cambios en el desempeño o la actitud de un empleado,
@@ -769,7 +769,7 @@ const submitAlert = async (
     <p className="mt-1 text-sm text-slate-700">
       {saveStatus === "queued"
         ? "Se enviará automáticamente cuando vuelva la conexión."
-        : "La variación de desempeño fue registrada."}
+        : "La alerta de desempeño fue registrada."}
     </p>
 
     <button
