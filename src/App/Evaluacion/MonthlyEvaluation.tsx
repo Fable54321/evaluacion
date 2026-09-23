@@ -60,27 +60,27 @@ export default function MonthlyEvaluation({
     const groupDefinitions = [
       {
         id: "alignment",
-        title: "Categoría 1 — Alineación y actitud",
+        title: "Categoría 1 — Actitud",
       },
       {
         id: "learning",
-        title: "Categoría 2 — Aprendizaje y feedback",
+        title: "Categoría 2 — Aprendizaje",
       },
       {
         id: "performance",
         title:
-          "Categoría 3 — Rol, responsabilidad y desempeño",
+          "Categoría 3 — Responsabilidad",
+      },
+       {
+        id: "negative",
+        title: "Conductas negativas",
+        
       },
       {
         id: "progress",
-        title: "Categoría 4 — Progreso y continuidad",
+        title: "Categoría 4 — Progreso",
       },
-      {
-        id: "negative",
-        title: "Conductas negativas",
-        description:
-          "Estas preguntas se califican con la misma frecuencia, pero se invierten al calcular el resultado.",
-      },
+     
     ];
 
     return groupDefinitions
@@ -202,11 +202,7 @@ export default function MonthlyEvaluation({
                     {group.title}
                   </h4>
 
-                  {group.description && (
-                    <p className="mt-1 text-xs leading-5 text-slate-700">
-                      {group.description}
-                    </p>
-                  )}
+                 
                 </div>
 
                 <div className="space-y-3">
