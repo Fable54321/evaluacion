@@ -26,7 +26,6 @@ type AlertOption = {
   value: VariationAlertType;
   symbol: string;
   label: string;
-  description: string;
   selectedClassName: string;
 };
 
@@ -34,22 +33,22 @@ const alertOptions: AlertOption[] = [
   {
     value: "red",
     symbol: "🔴",
-    label: "Alerta roja",
-    description: "Bajó su rendimiento, perdió motivación o muestra una actitud preocupante.",
+    label: "Actitud preocupante",
+    
     selectedClassName: "border-red-500 bg-red-50 ring-red-100",
   },
   {
     value: "yellow",
     symbol: "🟡",
-    label: "Alerta amarilla",
-    description: "Observo cambios, me preocupa la situación o todavía tengo dudas.",
+    label: "Observo cambios",
+    
     selectedClassName: "border-amber-500 bg-amber-50 ring-amber-100",
   },
   {
     value: "positive",
     symbol: "🟢",
-    label: "Variación positiva",
-    description: "Se observa una mejora o una acción positiva destacada en su desempeño.",
+    label: "Excelente empleado",
+    
     selectedClassName: "border-green-600 bg-green-50 ring-green-100",
   },
 ];
@@ -93,6 +92,12 @@ const actionOptions: Array<{
   { value: "observing_him", label: "Lo estoy observando" },
   { value: "other", label: "Otro" },
 ];
+
+const textareaMaxLengths = {
+  situation: 500,
+  otherSinceWhen: 30,
+  otherAction: 500,
+} as const;
 
 export default function PerformanceVariationAlert() {
   const navigate = useNavigate();
@@ -546,7 +551,7 @@ const submitAlert = async (
                 return (
                   <label
                     key={option.value}
-                    className={`flex cursor-pointer gap-3 rounded-xl border-2 p-4 transition hover:border-slate-400 ${
+                    className={`flex items-center cursor-pointer gap-3 rounded-xl border-2 px-4 py-2 transition hover:border-slate-400 ${
                       selected
                         ? `${option.selectedClassName} ring-2`
                         : "border-slate-200 bg-white"
@@ -561,10 +566,10 @@ const submitAlert = async (
                       className="sr-only"
                     />
                     <span aria-hidden="true" className="text-xl">{option.symbol}</span>
-                    <span>
+                  
                       <span className="block text-sm font-bold text-slate-900">{option.label}</span>
-                      <span className="mt-1 block text-xs leading-5 text-slate-600">{option.description}</span>
-                    </span>
+                     
+                    
                   </label>
                 );
               })}
@@ -580,7 +585,7 @@ const submitAlert = async (
               id="situation-description"
               name="situation-description"
               rows={4}
-              maxLength={1000}
+              maxLength={textareaMaxLengths.situation}
               required
               value={otherSituation}
               onChange={(event) => {
@@ -630,7 +635,7 @@ const submitAlert = async (
                 <textarea
                   id="other-since-when"
                   rows={3}
-                  maxLength={1000}
+                  maxLength={textareaMaxLengths.otherSinceWhen}
                   required
                   value={otherSinceWhen}
                   onChange={(event) => { setOtherSinceWhen(event.target.value); setFormError(""); clearError(); }}
@@ -668,7 +673,7 @@ const submitAlert = async (
                 <textarea
                   id="other-action"
                   rows={3}
-                  maxLength={1000}
+                  maxLength={textareaMaxLengths.otherAction}
                   required
                   value={otherAction}
                   onChange={(event) => { setOtherAction(event.target.value); setFormError(""); clearError(); }}
