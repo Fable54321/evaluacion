@@ -8,14 +8,12 @@ import {
 import {
   useEvaluation,
   type VariationAlertType,
-  type VariationAlertReason,
   type VariationAlertSinceWhen,
   type VariationAlertAction,
 } from "../../Contexts/evaluationContext";
 import { useAuth } from "../../Contexts/AuthContext";
 import {
   deleteVariationAlertDraft,
-  getEvaluationDraft,
   getVariationAlertDraft,
   saveVariationAlertDraft,
   type VariationAlertDraft,
@@ -56,53 +54,13 @@ const alertOptions: AlertOption[] = [
   },
 ];
 
-const situationOptions: Array<{
-  value: VariationAlertReason;
-  label: string;
-}> = [
-  {
-    value: "low_performance_or_distracted",
-    label: "Bajó su rendimiento o está distraído",
-  },
-  {
-    value: "lost_motivation_or_low_attitude",
-    label: "Perdió motivación o muestra una actitud apagada",
-  },
-  {
-    value: "problems_with_coworkers",
-    label: "Tiene problemas con compañeros",
-  },
-  {
-    value: "isolates_or_frequent_complaints",
-    label: "Se aísla o presenta quejas frecuentes",
-  },
-  {
-    value: "positive_action",
-    label: "Realizó una acción positiva destacada",
-  },
-  {
-    value: "other",
-    label: "Otro",
-  },
-];
-
-const positiveSituationValues: VariationAlertReason[] = [
-  "positive_action",
-  "other",
-];
-
-const isPositiveSituation = (value: VariationAlertReason | "") =>
-  value !== "" && positiveSituationValues.includes(value);
-
-const isSituationAllowed = (
-  alertLevel: VariationAlertType | "",
-  value: VariationAlertReason | "",
-) => {
-  if (!alertLevel || !value || value === "other") return true;
-
-  return alertLevel === "positive"
-    ? isPositiveSituation(value)
-    : !isPositiveSituation(value);
+// Convert an unfinished draft made with the earlier radio choices into editable text.
+const legacySituationLabels: Record<string, string> = {
+  low_performance_or_distracted: "Bajó su rendimiento o está distraído",
+  lost_motivation_or_low_attitude: "Perdió motivación o muestra una actitud apagada",
+  problems_with_coworkers: "Tiene problemas con compañeros",
+  isolates_or_frequent_complaints: "Se aísla o presenta quejas frecuentes",
+  positive_action: "Realizó una acción positiva destacada",
 };
 
 const timeframeOptions: Array<{
@@ -131,26 +89,9 @@ const actionOptions: Array<{
   value: VariationAlertAction;
   label: string;
 }> = [
-  {
-    value: "direct_conversation",
-    label: "Conversación directa para motivar o corregir",
-  },
-  {
-    value: "field_observation_and_notes",
-    label: "Observación en campo y registro de notas",
-  },
-  {
-    value: "repeated_suggestions",
-    label: "Sugerencias repetidas (más de dos veces)",
-  },
-  {
-    value: "clear_task_reminders",
-    label: "Recordatorios claros sobre las tareas",
-  },
-  {
-    value: "active_follow_up",
-    label: "Seguimiento activo en progreso",
-  },
+  { value: "spoke_with_him_several_times", label: "Ya hablé con él varias veces" },
+  { value: "observing_him", label: "Lo estoy observando" },
+  { value: "other", label: "Otro" },
 ];
 
 export default function PerformanceVariationAlert() {
@@ -184,8 +125,7 @@ export default function PerformanceVariationAlert() {
   const [alertLevel, setAlertLevel] =
   useState<VariationAlertType | "">("");
 
-const [situation, setSituation] =
-  useState<VariationAlertReason | "">("");
+
 
 const [timeframe, setTimeframe] =
   useState<VariationAlertSinceWhen | "">("");
@@ -193,11 +133,11 @@ const [timeframe, setTimeframe] =
 const [action, setAction] =
   useState<VariationAlertAction | "">("");
 
-const [otherSituation, setOtherSituation] =
-  useState("");
+const [otherSituation, setOtherSituation] = useState("");
+const [otherSinceWhen, setOtherSinceWhen] = useState("");
+const [otherAction, setOtherAction] = useState("");
 
-const [positiveSituation, setPositiveSituation] =
-  useState("");
+
 
 const [formError, setFormError] =
   useState("");
@@ -226,11 +166,11 @@ const alertHasContent = Boolean(
   selectedTeamLeaderId ||
   selectedEmployeeId ||
   alertLevel ||
-  situation ||
   timeframe ||
   action ||
   otherSituation.trim() ||
-  positiveSituation.trim()
+  otherSinceWhen.trim() ||
+  otherAction.trim()
 );
 
 
@@ -252,15 +192,18 @@ useEffect(() => {
         setSelectedTeamLeaderId(draft.selectedTeamLeaderId);
         setSelectedEmployeeId(draft.selectedEmployeeId);
         setAlertLevel(draft.alertLevel);
-        setSituation(
-          isSituationAllowed(draft.alertLevel, draft.situation)
-            ? draft.situation
-            : "",
-        );
+
         setTimeframe(draft.timeframe);
         setAction(draft.action);
-        setOtherSituation(draft.otherSituation);
-        setPositiveSituation(draft.positiveSituation);
+        setOtherSinceWhen(draft.otherSinceWhen ?? "");
+        setOtherAction(draft.otherAction ?? "");
+        setOtherSituation(
+          draft.situation === "positive_action"
+            ? [legacySituationLabels.positive_action, draft.positiveSituation].filter(Boolean).join(": ")
+            : draft.situation === "other"
+              ? draft.otherSituation
+              : legacySituationLabels[draft.situation] ?? draft.otherSituation ?? "",
+        );
         setClientSubmissionId(draft.clientSubmissionId);
         setDraftStatus("saved");
       }
@@ -287,11 +230,13 @@ useEffect(() => {
       selectedTeamLeaderId,
       selectedEmployeeId,
       alertLevel,
-      situation,
+      situation: "other",
       timeframe,
       action,
       otherSituation,
-      positiveSituation,
+      otherSinceWhen,
+      otherAction,
+      positiveSituation: "",
       updatedAt: new Date().toISOString(),
     };
 
@@ -311,39 +256,16 @@ useEffect(() => {
   selectedTeamLeaderId,
   selectedEmployeeId,
   alertLevel,
-  situation,
   timeframe,
   action,
   otherSituation,
-  positiveSituation,
+  otherSinceWhen,
+  otherAction,
   alertHasContent,
 ]);
 
-const selectSituation = (value: VariationAlertReason) => {
-  if (!isSituationAllowed(alertLevel, value)) return;
-
-  if (situation === "positive_action" && value !== "positive_action") {
-    setPositiveSituation("");
-  }
-
-  if (situation === "other" && value !== "other") {
-    setOtherSituation("");
-  }
-
-  setSituation(value);
-  setFormError("");
-  clearError();
-};
-
 const selectAlertLevel = (value: VariationAlertType) => {
   setAlertLevel(value);
-
-  if (!isSituationAllowed(value, situation)) {
-    setSituation("");
-    setOtherSituation("");
-    setPositiveSituation("");
-  }
-
   setFormError("");
   clearError();
 };
@@ -357,11 +279,11 @@ const cancelVariationAlert = async () => {
   setSelectedTeamLeaderId("");
   setSelectedEmployeeId("");
   setAlertLevel("");
-  setSituation("");
   setTimeframe("");
   setAction("");
   setOtherSituation("");
-  setPositiveSituation("");
+  setOtherSinceWhen("");
+  setOtherAction("");
   setFormError("");
   clearError();
   setSaveStatus("synced");
@@ -378,17 +300,10 @@ const cancelVariationAlert = async () => {
 
 const switchToMonthlyEvaluation = async () => {
   const alertStarted = !submitted && alertHasContent;
-  const evaluationDraft = user
-    ? await getEvaluationDraft(user.id).catch(() => null)
-    : null;
-  const evaluationStarted = Boolean(evaluationDraft);
 
-  if (alertStarted || evaluationStarted) {
-    const message = alertStarted && evaluationStarted
-      ? "Hay una alerta y una evaluación en curso. La alerta se guardará y se abrirá el borrador de la evaluación. ¿Continuar?"
-      : alertStarted
-        ? "Hay una alerta en curso. Se guardará como borrador para que pueda continuarla después. ¿Cambiar a una evaluación?"
-        : "Ya hay una evaluación en curso. Al cambiar, se abrirá ese borrador. ¿Continuar?";
+  if (alertStarted ) {
+    const message = "Hay una alerta en curso. Se guardará como borrador para que pueda continuarla después. ¿Regresar a la página de inicio?";
+    
 
     if (!window.confirm(message)) return;
   }
@@ -402,11 +317,13 @@ const switchToMonthlyEvaluation = async () => {
       selectedTeamLeaderId,
       selectedEmployeeId,
       alertLevel,
-      situation,
+      situation: "other",
       timeframe,
       action,
       otherSituation,
-      positiveSituation,
+      otherSinceWhen,
+      otherAction,
+      positiveSituation: "",
       updatedAt: new Date().toISOString(),
     }).catch(() => undefined);
   }
@@ -443,37 +360,8 @@ const submitAlert = async (
     return;
   }
 
-  if (!situation) {
-    setFormError(
-      "Seleccione al menos una situación.",
-    );
-    return;
-  }
-
-  if (!isSituationAllowed(alertLevel, situation)) {
-    setFormError(
-      "Seleccione una situaciÃ³n compatible con el tipo de alerta.",
-    );
-    return;
-  }
-
-  if (
-    situation === "other" &&
-    !otherSituation.trim()
-  ) {
-    setFormError(
-      "Describa la otra situación.",
-    );
-    return;
-  }
-
-  if (
-    situation === "positive_action" &&
-    !positiveSituation.trim()
-  ) {
-    setFormError(
-      "Describa la situación positiva.",
-    );
+  if (!otherSituation.trim()) {
+    setFormError("Describa qué está pasando.");
     return;
   }
 
@@ -481,6 +369,16 @@ const submitAlert = async (
     setFormError(
       "Seleccione desde cuándo observa la situación.",
     );
+    return;
+  }
+
+  if (timeframe === "other" && !otherSinceWhen.trim()) {
+    setFormError("Especifique desde cuándo observa la situación.");
+    return;
+  }
+
+  if (action === "other" && !otherAction.trim()) {
+    setFormError("Describa qué más intentó como jefe.");
     return;
   }
 
@@ -493,15 +391,12 @@ const submitAlert = async (
     alert_type: alertLevel,
     since_when: timeframe,
 
-    reasons: [situation],
+    reasons: ["other"],
     actions: action ? [action] : [],
 
-    other_reason: situation === "other"
-      ? otherSituation.trim()
-      : undefined,
-    comments: situation === "positive_action"
-      ? positiveSituation.trim()
-      : undefined,
+    other_reason: otherSituation.trim(),
+    other_since_when: timeframe === "other" ? otherSinceWhen.trim() : undefined,
+    other_action: action === "other" ? otherAction.trim() : undefined,
   });
 
   if (!result) {
@@ -515,11 +410,11 @@ const submitAlert = async (
   setSaveStatus(result.status);
   setSelectedEmployeeId("");
   setAlertLevel("");
-  setSituation("");
   setTimeframe("");
   setAction("");
   setOtherSituation("");
-  setPositiveSituation("");
+  setOtherSinceWhen("");
+  setOtherAction("");
   setFormError("");
   clearError();
   setDraftStatus("idle");
@@ -539,13 +434,23 @@ const submitAlert = async (
             Formulario breve para reportar cambios en el desempeño o la actitud de un empleado,
             facilitar el seguimiento y ofrecer apoyo oportuno.
           </p>
+          <div className="flex justify-between items-center">
           <button
             type="button"
             onClick={() => void switchToMonthlyEvaluation()}
             className="mt-4 rounded-lg border border-secondary bg-white px-4 py-2 text-sm font-bold text-secondary transition hover:bg-tertiary"
           >
-            Iniciar evaluación mensual
+            Regresar
           </button>
+              <button
+      type="button"
+      onClick={() => void cancelVariationAlert()}
+      disabled={saving}
+      className="button-cancel"
+    >
+      Cancelar
+    </button>
+          </div>
           <OfflineStatus
             shellStatus={offlineShellStatus}
             syncStatus={syncStatus}
@@ -666,67 +571,27 @@ const submitAlert = async (
             </div>
           </fieldset>
 
-          <fieldset>
-            <legend className="w-full">
-              <SectionHeading number="3">¿Qué está pasando?</SectionHeading>
-            </legend>
-            <p className="mt-2 text-sm text-slate-600">Seleccione una opción.</p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 max-w-full">
-              {situationOptions.map((option) => {
-                const disabled = !isSituationAllowed(alertLevel, option.value);
-
-                return (
-                  <SingleChoiceOption
-                    key={option.value}
-                    name="situation"
-                    value={option.value}
-                    label={option.label}
-                    checked={situation === option.value}
-                    disabled={disabled}
-                    onChange={() => selectSituation(option.value)}
-                  />
-                );
-              })}
-            </div>
-            {situation === "positive_action" && (
-              <label htmlFor="positive-situation" className="mt-3 block text-sm font-semibold text-slate-800">
-                Describa la situación positiva
-                <textarea
-                  id="positive-situation"
-                  name="positive-situation"
-                  rows={3}
-                  maxLength={1000}
-                  value={positiveSituation}
-                  onChange={(event) => {
-                    setPositiveSituation(event.target.value);
-                    setFormError("");
-                    clearError();
-                  }}
-                  placeholder="Explique brevemente la mejora o acción positiva observada."
-                  className="mt-2 block w-full resize-y rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-sm font-normal outline-none transition focus:border-secondary focus:ring-2 focus:ring-primary/30"
-                />
-              </label>
-            )}
-            {situation === "other" && (
-              <label htmlFor="other-situation" className="mt-3 block text-sm font-semibold text-slate-800">
-                Describa la otra situación
-              <textarea
-  id="other-situation"
-  name="other-situation"
-  rows={3}
-  maxLength={1000}
-  value={otherSituation}
-  onChange={(event) => {
-    setOtherSituation(event.target.value);
-    setFormError("");
-    clearError();
-  }}
-  placeholder="Explique brevemente qué está observando."
-  className="mt-2 block w-full resize-y rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-sm font-normal outline-none transition focus:border-secondary focus:ring-2 focus:ring-primary/30"
-/>
-              </label>
-            )}
-          </fieldset>
+          <section aria-labelledby="situation-heading">
+            <SectionHeading number="3" id="situation-heading">¿Qué está pasando?</SectionHeading>
+            <label htmlFor="situation-description" className="mt-4 block text-sm font-semibold text-slate-800">
+              Describa la situación
+            </label>
+            <textarea
+              id="situation-description"
+              name="situation-description"
+              rows={4}
+              maxLength={1000}
+              required
+              value={otherSituation}
+              onChange={(event) => {
+                setOtherSituation(event.target.value);
+                setFormError("");
+                clearError();
+              }}
+              placeholder="Explique qué está observando."
+              className="mt-2 block w-full resize-y rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-sm font-normal outline-none transition focus:border-secondary focus:ring-2 focus:ring-primary/30"
+            />
+          </section>
 
           <fieldset>
             <legend className="w-full">
@@ -747,13 +612,32 @@ const submitAlert = async (
                     name="timeframe"
                     value={option.value}
                     checked={timeframe === option.value}
-                    onChange={() => setTimeframe(option.value)}
+                    onChange={() => {
+                      setTimeframe(option.value);
+                      if (option.value !== "other") setOtherSinceWhen("");
+                      setFormError("");
+                      clearError();
+                    }}
                     className="size-4 accent-secondary"
                   />
                   {option.label}
                 </label>
               ))}
             </div>
+            {timeframe === "other" && (
+              <label htmlFor="other-since-when" className="mt-3 block text-sm font-semibold text-slate-800">
+                Especifique desde cuándo
+                <textarea
+                  id="other-since-when"
+                  rows={3}
+                  maxLength={1000}
+                  required
+                  value={otherSinceWhen}
+                  onChange={(event) => { setOtherSinceWhen(event.target.value); setFormError(""); clearError(); }}
+                  className="mt-2 block w-full resize-y rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-sm font-normal outline-none transition focus:border-secondary focus:ring-2 focus:ring-primary/30"
+                />
+              </label>
+            )}
           </fieldset>
 
           <fieldset>
@@ -771,12 +655,27 @@ const submitAlert = async (
                   checked={action === option.value}
                   onChange={() => {
                     setAction(option.value);
+                    if (option.value !== "other") setOtherAction("");
                     setFormError("");
                     clearError();
                   }}
                 />
               ))}
             </div>
+            {action === "other" && (
+              <label htmlFor="other-action" className="mt-3 block text-sm font-semibold text-slate-800">
+                Describa qué más intentó
+                <textarea
+                  id="other-action"
+                  rows={3}
+                  maxLength={1000}
+                  required
+                  value={otherAction}
+                  onChange={(event) => { setOtherAction(event.target.value); setFormError(""); clearError(); }}
+                  className="mt-2 block w-full resize-y rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-sm font-normal outline-none transition focus:border-secondary focus:ring-2 focus:ring-primary/30"
+                />
+              </label>
+            )}
           </fieldset>
 
           {(formError || saveError) && (
@@ -793,7 +692,7 @@ const submitAlert = async (
       type="button"
       onClick={() => void cancelVariationAlert()}
       disabled={saving}
-      className="button-secondary"
+      className="button-cancel"
     >
       Cancelar
     </button>

@@ -136,11 +136,15 @@ export type VariationAlertSinceWhen =
   | "other";
 
 export type VariationAlertAction =
+  // Keep earlier values so existing alerts and offline submissions remain readable.
   | "direct_conversation"
   | "field_observation_and_notes"
   | "repeated_suggestions"
   | "clear_task_reminders"
-  | "active_follow_up";
+  | "active_follow_up"
+  | "spoke_with_him_several_times"
+  | "observing_him"
+  | "other";
 
 export type VariationAlertSummary = {
   id: number;
@@ -152,6 +156,7 @@ export type VariationAlertSummary = {
   since_when: VariationAlertSinceWhen;
 
   other_reason: string | null;
+  other_action: string | null;
   comments: string | null;
 
   created_by_user_id: number | null;
@@ -181,6 +186,8 @@ export type CreateVariationAlertPayload = {
   actions: VariationAlertAction[];
 
   other_reason?: string;
+  other_since_when?: string;
+  other_action?: string;
   comments?: string;
 };
 

@@ -275,7 +275,7 @@ export default function Evaluacion() {
           onClick={() => void switchToVariationAlert()}
           className="print-hide mt-3 rounded-lg border border-secondary bg-white px-4 py-2 text-sm font-bold text-secondary transition hover:bg-tertiary"
         >
-          Crear alerta de variación
+          Regresar
         </button>
         {step === "setup" ? (
           <form

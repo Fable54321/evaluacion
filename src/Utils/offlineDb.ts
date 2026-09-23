@@ -72,6 +72,8 @@ export type VariationAlertDraft = {
   timeframe: VariationAlertSinceWhen | "";
   action: VariationAlertAction | "";
   otherSituation: string;
+  otherSinceWhen?: string;
+  otherAction?: string;
   positiveSituation: string;
   updatedAt: string;
 };
