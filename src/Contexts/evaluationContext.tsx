@@ -131,10 +131,9 @@ export type VariationAlertReason =
 
 export type VariationAlertSinceWhen =
   | "today"
-  | "few_days"
   | "this_week"
   | "since_arrival"
-  | "observation_unclear";
+  | "other";
 
 export type VariationAlertAction =
   | "direct_conversation"

@@ -9,7 +9,6 @@ import { submitEvaluation } from "../../Utils/offlineSync";
 import {
   deleteEvaluationDraft,
   getEvaluationDraft,
-  getVariationAlertDraft,
   saveEvaluationDraft,
   type EvaluationDraft,
   type OfflineEvaluationPayload,
@@ -17,6 +16,7 @@ import {
 import { useEvaluationSync } from "../../Hooks/useEvaluationSync";
 import { useOfflineReadiness } from "../../Hooks/useOfflineReadiness";
 import { useAuth } from "../../Contexts/AuthContext";
+import SubmissionSuccess from "./SubmissionSuccess";
 
 type Step = "setup" | "evaluation" | "complete";
 
@@ -160,28 +160,12 @@ export default function Evaluacion() {
   };
   const switchToVariationAlert = async () => {
     const evaluationStarted = step === "evaluation";
-    const alertDraft = user
-      ? await getVariationAlertDraft(user.id).catch(() => null)
-      : null;
-    const alertStarted = Boolean(
-      alertDraft && (
-        alertDraft.selectedTeamLeaderId ||
-        alertDraft.selectedEmployeeId ||
-        alertDraft.alertLevel ||
-        alertDraft.situation ||
-        alertDraft.timeframe ||
-        alertDraft.action ||
-        alertDraft.otherSituation.trim() ||
-        alertDraft.positiveSituation.trim()
-      ),
-    );
+   
+    
+   
 
-    if (evaluationStarted || alertStarted) {
-      const message = evaluationStarted && alertStarted
-        ? "Hay una evaluación y una alerta en curso. La evaluación se guardará y se abrirá el borrador de la alerta. ¿Continuar?"
-        : evaluationStarted
-          ? "Hay una evaluación en curso. Se guardará como borrador para que pueda continuarla después. ¿Cambiar a una alerta?"
-          : "Ya hay una alerta en curso. Al cambiar, se abrirá ese borrador. ¿Continuar?";
+    if (evaluationStarted) {
+      const message = "Hay una evaluación en curso. Se guardará como borrador para que pueda continuarla después. ¿Regresar a la página de inicio?";
 
       if (!window.confirm(message)) return;
     }
@@ -202,7 +186,7 @@ export default function Evaluacion() {
       }).catch(() => undefined);
     }
 
-    navigate("/variacion-de-desempeno");
+    navigate("/");
   };
   const saveEvaluation = async () => {
     if (!selectedEvaluator || !selectedWorker) return;
@@ -378,25 +362,15 @@ export default function Evaluacion() {
                     error={saveError}
                   />
                 ) : (
-                  <div className="mx-auto max-w-xl py-8 text-center">
-                    <p className="text-xs font-bold uppercase tracking-widest text-secondary">Evaluación terminada</p>
-                    <h3 className="mt-2 text-2xl font-semibold text-deepgreen">La evaluación se completó correctamente</h3>
-                    {saveStatus === "queued" && (
-                      <p className="mx-auto mt-2 max-w-xl rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
-                        Se guardó en este dispositivo y se enviará automáticamente cuando vuelva la conexión.
-                      </p>
-                    )}
-                    <p className="mt-3 text-sm text-slate-600">
-                      Se guardaron las 30 respuestas y los comentarios adicionales.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={startNextEvaluation}
-                      className="button-primary mt-5"
-                    >
-                      Nueva evaluación
-                    </button>
-                  </div>
+                  <SubmissionSuccess
+                    eyebrow="Evaluación terminada"
+                    title="La evaluación se completó correctamente"
+                    saveStatus={saveStatus}
+                    queuedMessage="Se guardó en este dispositivo y se enviará automáticamente cuando vuelva la conexión."
+                    description="Se guardaron las 30 respuestas y los comentarios adicionales."
+                    actionLabel="Nueva evaluación"
+                    onAction={startNextEvaluation}
+                  />
                 )}
               </div>
             </section>

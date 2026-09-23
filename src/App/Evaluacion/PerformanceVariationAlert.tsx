@@ -22,6 +22,7 @@ import {
 } from "../../Utils/offlineDb";
 import { useEvaluationSync } from "../../Hooks/useEvaluationSync";
 import { useOfflineReadiness } from "../../Hooks/useOfflineReadiness";
+import SubmissionSuccess from "./SubmissionSuccess";
 
 type AlertOption = {
   value: VariationAlertType;
@@ -113,10 +114,6 @@ const timeframeOptions: Array<{
     label: "Hoy",
   },
   {
-    value: "few_days",
-    label: "Hace pocos días",
-  },
-  {
     value: "this_week",
     label: "Esta semana",
   },
@@ -125,8 +122,8 @@ const timeframeOptions: Array<{
     label: "Desde su llegada",
   },
   {
-    value: "observation_unclear",
-    label: "En observación / no preciso",
+    value: "other",
+    label: "Otro",
   },
 ];
 
@@ -414,7 +411,7 @@ const switchToMonthlyEvaluation = async () => {
     }).catch(() => undefined);
   }
 
-  navigate("/evaluaciones-mensuales");
+  navigate("/");
 };
 
 const submitAlert = async (
@@ -516,17 +513,25 @@ const submitAlert = async (
   }
 
   setSaveStatus(result.status);
+  setSelectedEmployeeId("");
+  setAlertLevel("");
+  setSituation("");
+  setTimeframe("");
+  setAction("");
+  setOtherSituation("");
+  setPositiveSituation("");
+  setFormError("");
+  clearError();
   setDraftStatus("idle");
+  setClientSubmissionId(crypto.randomUUID());
   setSubmitted(true);
+  window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
   return (
     <main className="min-h-screen px-3 py-8 font-primary sm:px-6">
       <article className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <header className="border-b border-primary/30 bg-tertiary px-5 py-6 sm:px-8">
-          <p className="text-xs font-bold uppercase tracking-widest text-secondary">
-            Empleados con más de 2 temporadas
-          </p>
           <h1 className="mt-1 font-secondary text-2xl font-bold text-deepgreen sm:text-3xl">
             Alerta de desempeño
           </h1>
@@ -554,7 +559,32 @@ const submitAlert = async (
           )}
         </header>
 
-        <form onSubmit={submitAlert} className="space-y-8 p-5 sm:p-8">
+        {submitted ? (
+          <section className="p-5 sm:p-8">
+            <SubmissionSuccess
+              eyebrow="Alerta terminada"
+              title={
+                saveStatus === "queued"
+                  ? "La alerta se guardó en este dispositivo"
+                  : "La alerta se envió correctamente"
+              }
+              saveStatus={saveStatus}
+              queuedMessage="Se enviará automáticamente cuando vuelva la conexión."
+              description={
+                saveStatus === "queued"
+                  ? "La alerta está lista y no es necesario completar el formulario de nuevo."
+                  : "La alerta de desempeño fue registrada."
+              }
+              actionLabel="Nueva alerta"
+              onAction={() => {
+                setSaveStatus("synced");
+                setSubmitted(false);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+            />
+          </section>
+        ) : (
+          <form onSubmit={submitAlert} className="space-y-8 p-5 sm:p-8">
           <section aria-labelledby="employee-heading">
             <SectionHeading number="1" id="employee-heading">
               Jefe de equipo y empleado
@@ -758,45 +788,6 @@ const submitAlert = async (
   </p>
 )}
 
-{submitted ? (
-  <div className="rounded-xl border border-primary/40 bg-tertiary px-5 py-5">
-    <p className="font-secondary text-lg font-bold text-deepgreen">
-      {saveStatus === "queued"
-        ? "Alerta guardada en este dispositivo"
-        : "Alerta enviada correctamente"}
-    </p>
-
-    <p className="mt-1 text-sm text-slate-700">
-      {saveStatus === "queued"
-        ? "Se enviará automáticamente cuando vuelva la conexión."
-        : "La alerta de desempeño fue registrada."}
-    </p>
-
-    <button
-      type="button"
-      onClick={() => {
-        if (user) void deleteVariationAlertDraft(user.id);
-        setSelectedEmployeeId("");
-        setAlertLevel("");
-        setSituation("");
-        setTimeframe("");
-        setAction("");
-        setOtherSituation("");
-        setPositiveSituation("");
-        setFormError("");
-        clearError();
-        setSaveStatus("synced");
-        setDraftStatus("idle");
-        setClientSubmissionId(crypto.randomUUID());
-        setSubmitted(false);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }}
-      className="button-primary mt-4"
-    >
-      Nueva alerta
-    </button>
-  </div>
-) : (
   <div className="flex items-center justify-between gap-3">
     <button
       type="button"
@@ -817,8 +808,8 @@ const submitAlert = async (
         : "Enviar alerta"}
     </button>
   </div>
-)}
-        </form>
+          </form>
+        )}
       </article>
     </main>
   );
