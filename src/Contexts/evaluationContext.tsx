@@ -30,6 +30,7 @@ export type MonthlyEvaluationQuestion = {
   category: string | null;
   is_negative: boolean;
   is_active: boolean;
+  is_yes_or_no: boolean;
 };
 
 /* =========================================================

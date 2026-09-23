@@ -5,6 +5,8 @@ import {
   type MonthlyAnswers,
 } from "../../Contexts/evaluationContext";
 
+
+
 const frequencyOptions = [
   { value: 1, label: "Nunca" },
   { value: 2, label: "Rara vez" },
@@ -182,6 +184,10 @@ export default function MonthlyEvaluation({
                 (question) =>
                   question.is_negative,
               );
+            const isYesOrNo = 
+              group.questions.some(
+                (question) => question.is_yes_or_no
+              );  
 
             return (
               <section
@@ -201,6 +207,11 @@ export default function MonthlyEvaluation({
                   >
                     {group.title}
                   </h4>
+                  {isYesOrNo && 
+                    <h5 className="text-[0.9rem]">
+                      preguntas que se responden con sí o no
+                    </h5>
+                  }
 
                  
                 </div>
@@ -244,7 +255,8 @@ export default function MonthlyEvaluation({
                           }
                         </p>
 
-                        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                 {!isYesOrNo ? (       
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
                           {frequencyOptions.map(
                             (option) => (
                               <label
@@ -313,6 +325,39 @@ export default function MonthlyEvaluation({
                             ),
                           )}
                         </div>
+                 ) : (
+                   <div className="flex items-center gap-3 mt-3 ">
+                    <label htmlFor={`${question.question_key}-yes`} className="rating-option flex-row-reverse">
+                      Si
+                      <input  
+                      type="radio"
+                      className="size-4 accent-secondary" 
+                      value={5}
+                      checked={answers[question.question_key] === 5}
+                      onChange={() => onAnswersChange(
+                        {
+                          ...answers,
+                        [question.question_key]: 5
+                      }
+                      )}
+                      id={`${question.question_key}-yes`} />
+                    </label>
+                    <label htmlFor={`${question.question_key}-no`} className="rating-option flex-row-reverse">
+                      No
+                      <input 
+                      type="radio"
+                      className="size-4 accent-secondary" 
+                      value={1}
+                      checked={answers[question.question_key] === 1}
+                      onChange={() => onAnswersChange({
+                        ...answers,
+                        [question.question_key]: 1
+                      })}
+                      id={`${question.question_key}-no`} />
+                    </label>
+                   </div>
+                 )
+                        }
                       </fieldset>
                     ),
                   )}
