@@ -9,6 +9,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import Home from "./App/100--Home/Home.tsx";
 import Evaluacion from "./App/Evaluacion/Evaluacion.tsx";
 import PerformanceVariationAlert from "./App/Evaluacion/PerformanceVariationAlert.tsx";
+import { OfficeEmployeesProvider } from "./Contexts/officeEmployeesContext.tsx";
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -44,7 +45,9 @@ createRoot(document.getElementById("root")!).render(
       
       <ForeignWorkersProvider>
         <EvaluationProvider>
+          <OfficeEmployeesProvider>
         <RouterProvider router={router} />
+        </OfficeEmployeesProvider>
         </EvaluationProvider>
       </ForeignWorkersProvider>
     </AuthProvider>

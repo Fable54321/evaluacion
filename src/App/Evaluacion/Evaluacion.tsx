@@ -17,20 +17,35 @@ import { useEvaluationSync } from "../../Hooks/useEvaluationSync";
 import { useOfflineReadiness } from "../../Hooks/useOfflineReadiness";
 import { useAuth } from "../../Contexts/AuthContext";
 import SubmissionSuccess from "./SubmissionSuccess";
+import { useOfficeEmployees } from "../../Contexts/officeEmployeesContext";
 
 type Step = "setup" | "evaluation" | "complete";
 
 export default function Evaluacion() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { officeEmployees } = useOfficeEmployees();
   const { foreignWorkers, workersListLoading, error } = useForeignWorkers();
+
+
+
   const evaluators = useMemo(
-    () =>
-      foreignWorkers.filter(
+    () => {
+      const firstPart = foreignWorkers.filter(
         (worker) => worker.job_id_1 === 6 || worker.job_id_2 === 6,
-      ),
-    [foreignWorkers],
+      )
+
+      const secondPart =  officeEmployees.filter((emp) => Number(emp.id) === 375 || Number(emp.id) === 386)
+
+      return [...secondPart, ...firstPart];
+
+    },
+    [foreignWorkers, officeEmployees],
   );
+
+
+
+
   const workers = useMemo(
     () =>
       foreignWorkers.filter(
@@ -63,6 +78,13 @@ export default function Evaluacion() {
   );
   const evaluatorValue = selectedEvaluator ? String(selectedEvaluator.id) : "";
   const workerValue = selectedWorker ? String(selectedWorker.id) : "";
+
+
+  useEffect(() => {
+  console.log(selectedEvaluatorId)
+},[selectedEvaluatorId])
+
+
 
   useEffect(() => {
     if (!user) return;
@@ -302,7 +324,11 @@ export default function Evaluacion() {
             />
             <ReadOnlyMatricula
               id="evaluator-matricula"
-              value={selectedEvaluator?.matricula}
+              value={
+                selectedEvaluator && "matricula" in selectedEvaluator
+                  ? selectedEvaluator.matricula
+                  : undefined
+              }
             />
             <SearchableWorkerSelect
               label="Nombre de la persona evaluada"
@@ -441,7 +467,7 @@ type WorkerOption = {
   id: number;
   surname: string;
   name: string;
-  matricula: string;
+  matricula?: string;
 };
 
 function titleCaseName(value: string) {
@@ -482,7 +508,7 @@ function SearchableWorkerSelect({
   const normalizedQuery = normalizeSearch(query);
   const filteredWorkers = options.filter((worker) =>
     normalizeSearch(
-      `${worker.name} ${worker.surname} ${worker.surname} ${worker.name} ${worker.matricula}`,
+      `${worker.name} ${worker.surname} ${worker.surname} ${worker.name} ${worker.matricula ?? ""}`,
     ).includes(normalizedQuery),
   );
 
