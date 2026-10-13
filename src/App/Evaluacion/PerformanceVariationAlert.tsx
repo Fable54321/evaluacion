@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  useForeignWorkers,
-  type Worker,
-} from "../../Contexts/ForeignWorkersContext";
+import { useForeignWorkers } from "../../Contexts/ForeignWorkersContext";
+import { useOfficeEmployees } from "../../Contexts/officeEmployeesContext";
 
 import {
   useEvaluation,
@@ -102,6 +100,7 @@ const textareaMaxLengths = {
 export default function PerformanceVariationAlert() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { officeEmployees } = useOfficeEmployees();
   const { foreignWorkers, workersListLoading, error } = useForeignWorkers();
 
   const {
@@ -111,12 +110,21 @@ export default function PerformanceVariationAlert() {
   clearError,
 } = useEvaluation();
 
-  const teamLeaders = useMemo(
-    () =>
-      foreignWorkers.filter(
-        (worker) => worker.job_id_1 === 6 || worker.job_id_2 === 6,
-      ),
-    [foreignWorkers],
+  const teamLeaders = useMemo<WorkerOption[]>(
+    () => {
+      const foreignWorkerEvaluators = foreignWorkers.filter(
+        (worker) =>
+          worker.job_id_1 === 6 ||
+          worker.job_id_2 === 6 ||
+          worker.id === 22,
+      );
+      const officeEvaluators = officeEmployees.filter(
+        (employee) => employee.id === 375 || employee.id === 386,
+      );
+
+      return [...officeEvaluators, ...foreignWorkerEvaluators];
+    },
+    [foreignWorkers, officeEmployees],
   );
   const employees = useMemo(
     () =>
@@ -805,7 +813,14 @@ function titleCaseName(value: string) {
     .replace(/(^|[\s'-])\p{L}/gu, (letter) => letter.toLocaleUpperCase("es"));
 }
 
-function formatWorkerName(worker: Worker) {
+type WorkerOption = {
+  id: number;
+  name: string;
+  surname: string;
+  matricula?: string;
+};
+
+function formatWorkerName(worker: WorkerOption) {
   return `${titleCaseName(worker.surname)} ${titleCaseName(worker.name)}`;
 }
 
@@ -827,7 +842,7 @@ function SearchableWorkerSelect({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  options: Worker[];
+  options: WorkerOption[];
 }) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(false);
@@ -836,7 +851,7 @@ function SearchableWorkerSelect({
   const normalizedQuery = normalizeSearch(query);
   const filteredWorkers = options.filter((worker) =>
     normalizeSearch(
-      `${worker.name} ${worker.surname} ${worker.surname} ${worker.name} ${worker.matricula}`,
+      `${worker.name} ${worker.surname} ${worker.surname} ${worker.name} ${worker.matricula ?? ""}`,
     ).includes(normalizedQuery),
   );
 

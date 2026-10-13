@@ -32,7 +32,7 @@ export default function Evaluacion() {
   const evaluators = useMemo(
     () => {
       const firstPart = foreignWorkers.filter(
-        (worker) => worker.job_id_1 === 6 || worker.job_id_2 === 6,
+        (worker) => worker.job_id_1 === 6 || worker.job_id_2 === 6 || worker.id === 22,
       )
 
       const secondPart =  officeEmployees.filter((emp) => Number(emp.id) === 375 || Number(emp.id) === 386)
