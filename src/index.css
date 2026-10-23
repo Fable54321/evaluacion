@@ -54,8 +54,8 @@ html {
 
 @media print {
   @page {
-    size: auto;
-    margin: 12mm;
+    size: letter portrait;
+    margin: 10mm;
   }
 
   html {
@@ -84,6 +84,14 @@ html {
     display: block;
     width: 100%;
     color: #0f172a;
+  }
+
+  .home-page {
+    padding: 0 !important;
+  }
+
+  .home-page.print-ready .home-content {
+    display: none !important;
   }
 
   .print-evaluation button {
@@ -128,5 +136,204 @@ html {
     color: transparent !important;
     -webkit-text-fill-color: transparent !important;
     caret-color: transparent !important;
+  }
+
+  .paper-form {
+    font-family: Arial, sans-serif;
+    font-size: 9pt;
+    line-height: 1.3;
+  }
+
+  .paper-header {
+    display: grid;
+    grid-template-columns: 1fr 52mm;
+    align-items: end;
+    gap: 10mm;
+    border-bottom: 2px solid #263f08;
+    padding-bottom: 4mm;
+  }
+
+  .paper-header h1 {
+    margin: 1mm 0;
+    color: #263f08;
+    font-size: 20pt;
+    line-height: 1.1;
+  }
+
+  .paper-header p,
+  .paper-form p {
+    margin: 0;
+  }
+
+  .paper-kicker {
+    color: #4b7312;
+    font-size: 8pt;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .paper-field {
+    display: flex;
+    min-width: 0;
+    align-items: flex-end;
+    gap: 2mm;
+    font-weight: 700;
+  }
+
+  .paper-field-line {
+    min-width: 12mm;
+    flex: 1;
+    height: 5mm;
+    border-bottom: 1px solid #334155;
+  }
+
+  .paper-identity-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(35mm, 1fr);
+    gap: 4mm 8mm;
+    margin-top: 6mm;
+  }
+
+  .paper-instructions {
+    margin-top: 6mm !important;
+    border: 1px solid #94a3b8;
+    background: #f8fafc;
+    padding: 3mm;
+    print-color-adjust: exact;
+  }
+
+  .paper-question-group {
+    margin-top: 5mm;
+  }
+
+  .paper-question-group h2,
+  .paper-notes h2 {
+    margin: 0 0 2mm;
+    color: #263f08;
+    font-size: 11pt;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .paper-question-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .paper-question-table thead {
+    display: table-header-group;
+  }
+
+  .paper-question-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .paper-question-table th,
+  .paper-question-table td {
+    border: 1px solid #94a3b8;
+    padding: 2mm;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  .paper-question-table th {
+    background: #eef4e7;
+    color: #263f08;
+    font-size: 8pt;
+    text-transform: uppercase;
+    print-color-adjust: exact;
+  }
+
+  .paper-choice-heading {
+    width: 61mm;
+  }
+
+  .paper-choice-row,
+  .paper-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3mm 5mm;
+  }
+
+  .paper-choice-row {
+    justify-content: space-between;
+  }
+
+  .paper-checkbox-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 1.5mm;
+    white-space: nowrap;
+  }
+
+  .paper-checkbox {
+    display: inline-block;
+    width: 4mm;
+    height: 4mm;
+    border: 1px solid #0f172a;
+  }
+
+  .paper-notes,
+  .paper-section {
+    margin-top: 6mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .paper-writing-lines {
+    height: 28mm;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 7mm,
+      #94a3b8 7mm,
+      #94a3b8 calc(7mm + 1px)
+    );
+    print-color-adjust: exact;
+  }
+
+  .paper-writing-lines-tall {
+    height: 49mm;
+  }
+
+  .paper-section h2 {
+    display: flex;
+    align-items: center;
+    gap: 2mm;
+    margin: 0 0 4mm;
+    color: #263f08;
+    font-size: 12pt;
+  }
+
+  .paper-section h2 > span {
+    display: inline-flex;
+    width: 7mm;
+    height: 7mm;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #4b7312;
+    color: white;
+    font-size: 9pt;
+    print-color-adjust: exact;
+  }
+
+  .paper-section .paper-identity-grid {
+    margin-top: 0;
+  }
+
+  .paper-options {
+    margin-bottom: 4mm;
+  }
+
+  .paper-options-three {
+    justify-content: space-between;
+  }
+
+  .paper-prompt {
+    margin-bottom: 2mm !important;
+    font-weight: 700;
   }
 }
